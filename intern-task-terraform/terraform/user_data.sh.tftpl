@@ -1,0 +1,64 @@
+﻿
+#!/bin/bash
+set -euxo pipefail
+
+exec > >(tee -a /var/log/intern-task-bootstrap.log) 2>&1
+
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y docker.io ufw
+
+systemctl enable --now docker
+
+# Create a non-root administrator with passwordless sudo.
+if ! id internadmin >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash internadmin
+fi
+
+usermod -aG docker,sudo internadmin
+
+printf 'internadmin ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/internadmin
+chmod 0440 /etc/sudoers.d/internadmin
+visudo -cf /etc/sudoers.d/internadmin
+
+# Configure the host firewall: allow only the application port inbound.
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ${app_port}/tcp
+ufw --force enable
+
+# Use the actual application Dockerfile and source from the repository.
+mkdir -p /opt/intern-task-app/app
+
+cat > /opt/intern-task-app/Dockerfile <<'DOCKERFILE'
+${dockerfile_content}
+DOCKERFILE
+
+cat > /opt/intern-task-app/app/app.py <<'PYTHON'
+${app_source}
+PYTHON
+
+docker build -t intern-task-app:latest /opt/intern-task-app
+
+# Manage the application container with systemd and restart it after reboot.
+cat > /etc/systemd/system/intern-task-app.service <<SERVICE
+[Unit]
+Description=Atomity intern-task application container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host -e PORT=${app_port} intern-task-app:latest
+ExecStop=/usr/bin/docker stop intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
