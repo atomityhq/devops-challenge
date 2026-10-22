@@ -1,0 +1,35 @@
+# intern-task-app: what this app is. Shared by every environment; each
+# <env>.yaml next to this file overrides only what differs.
+#   chart defaults -> base.yaml -> <env>.yaml
+
+image:
+  repository: intern-task-app
+  tag: local
+  # Never = image only exists locally (kind/minikube load), no registry.
+  pullPolicy: Never
+
+# Must match ENV PORT in ../../Dockerfile.
+containerPort: 8080
+
+probes:
+  path: /healthz
+
+# Fixed UID from the Dockerfile's `USER 10001:10001`.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+config:
+  APP_ENV: local
+  LOG_LEVEL: info
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi

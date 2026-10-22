@@ -1,0 +1,65 @@
+# Generic defaults for any stateless HTTP service. Nothing app-specific here:
+# each app sets its identity in its own values file (see ../../values/).
+
+# Resource name. Defaults to the Helm release name.
+nameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: "" # required
+  tag: "" # required
+  pullPolicy: IfNotPresent
+
+# Port the app listens on. If portEnvVar is set, the chart also passes the
+# port to the app through that env var, so containerPort, probes and the
+# Service targetPort can never disagree with what the app binds.
+containerPort: 8080
+portEnvVar: PORT
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Non-secret config -> ConfigMap, injected as env vars.
+config: {}
+
+# Secret env vars. Real secrets never go in git (Argo CD syncs from git):
+#   existingSecret: name of a Secret created out-of-band (External Secrets,
+#                   Sealed Secrets, ...)
+#   secrets:        inline key/values rendered into a Secret — dev only.
+existingSecret: ""
+secrets: {}
+
+resources: {}
+
+probes:
+  path: /healthz
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# When enabled, the HPA owns the replica count and replicaCount is ignored.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70

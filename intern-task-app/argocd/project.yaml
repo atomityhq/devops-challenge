@@ -1,0 +1,29 @@
+# Scopes what the intern-task-app Applications may do: only this repo as a
+# source, only intern-task-app-* namespaces as destinations.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: intern-task-app
+  namespace: argocd
+spec:
+  description: intern-task-app, all environments
+  sourceRepos:
+    - https://github.com/mayurvij22/devops-challenge.git
+  destinations:
+    - server: "*"
+      namespace: intern-task-app-*
+  # Only cluster-scoped kind needed: the Namespace from CreateNamespace=true.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: Service
+    - group: apps
+      kind: Deployment
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler

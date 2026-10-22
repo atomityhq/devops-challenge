@@ -1,0 +1,17 @@
+# staging: real cluster, image from the registry, autoscaled.
+image:
+  repository: ghcr.io/mayurvij22/intern-task-app
+  tag: rc # CI bumps this via a commit; Argo CD syncs it
+  pullPolicy: IfNotPresent
+
+config:
+  APP_ENV: staging
+  LOG_LEVEL: info
+
+# Created out-of-band (External Secrets / Sealed Secrets), not stored in git.
+existingSecret: intern-task-app-secret
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4

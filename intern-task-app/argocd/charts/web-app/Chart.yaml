@@ -1,0 +1,5 @@
+apiVersion: v2
+name: web-app
+description: Reusable chart for a stateless HTTP service (Deployment, Service, ConfigMap, Secret, HPA).
+type: application
+version: 0.1.0

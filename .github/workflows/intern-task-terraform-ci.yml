@@ -4,15 +4,28 @@ on:
   pull_request:
     paths:
       - "intern-task-terraform/**"
+      # The module embeds intern-task-app's Dockerfile + source in user_data.
+      - "intern-task-app/Dockerfile"
+      - "intern-task-app/.dockerignore"
+      - "intern-task-app/app/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   push:
     branches: [main]
     paths:
       - "intern-task-terraform/**"
+      - "intern-task-app/Dockerfile"
+      - "intern-task-app/.dockerignore"
+      - "intern-task-app/app/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   workflow_dispatch:
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # The module lives here, not at the repo root.
+        working-directory: intern-task-terraform/terraform
     env:
       # Fake, not secret — these never touch a real AWS account. They only
       # work because the module's provider block sets skip_credentials_validation
@@ -20,6 +33,11 @@ jobs:
       AWS_ACCESS_KEY_ID: fake
       AWS_SECRET_ACCESS_KEY: fake
       AWS_DEFAULT_REGION: us-east-1
+      # Required variable with no default; CI has no TTY to prompt for it.
+      # 203.0.113.0/24 is TEST-NET-3 (RFC 5737), never routable.
+      TF_VAR_ssh_allowed_cidr: 203.0.113.10/32
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
     steps:
       - uses: actions/checkout@v4
 
@@ -30,8 +48,11 @@ jobs:
       - name: Format check
         run: terraform fmt -check -recursive
 
+      - name: Init
+        run: terraform init -backend=false
+
       - name: Validate
         run: terraform validate
 
       - name: Plan
-        run: terraform plan
+        run: terraform plan -lock=false

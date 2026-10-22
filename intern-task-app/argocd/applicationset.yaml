@@ -1,0 +1,62 @@
+# One Argo CD Application per environment, generated from the list below.
+# Each renders the reusable chart (charts/web-app) with this app's values
+# layered on top: chart defaults -> values/base.yaml -> values/<env>.yaml.
+#
+# Add an environment: create values/<env>.yaml and add an element here.
+# Promote a release: bump image.tag in that env's values file.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: intern-task-app
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          # Point each env at its own cluster in a real setup.
+          - env: dev
+            cluster: https://kubernetes.default.svc
+          - env: staging
+            cluster: https://kubernetes.default.svc
+          - env: prod
+            cluster: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: "intern-task-app-{{.env}}"
+      labels:
+        app: intern-task-app
+        env: "{{.env}}"
+    spec:
+      project: intern-task-app
+      # Multi-source: the chart is one source, the values files another
+      # (referenced as $values), so the same chart serves any app or env.
+      sources:
+        - repoURL: https://github.com/mayurvij22/devops-challenge.git
+          targetRevision: main
+          path: intern-task-app/argocd/charts/web-app
+          helm:
+            releaseName: intern-task-app
+            valueFiles:
+              - $values/intern-task-app/argocd/values/base.yaml
+              - "$values/intern-task-app/argocd/values/{{.env}}.yaml"
+        - repoURL: https://github.com/mayurvij22/devops-challenge.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: "{{.cluster}}"
+        namespace: "intern-task-app-{{.env}}"
+      syncPolicy:
+        # Git is the source of truth: drift is reverted, removed resources pruned.
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+      # The HPA owns replicas in staging/prod; don't report that as drift.
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

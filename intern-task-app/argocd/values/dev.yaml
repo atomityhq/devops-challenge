@@ -1,0 +1,10 @@
+# dev: local kind/minikube cluster, locally loaded image (from base.yaml).
+replicaCount: 1
+
+config:
+  APP_ENV: dev
+  LOG_LEVEL: debug
+
+# Dummy dev-only value so dev works out of the box.
+secrets:
+  API_TOKEN: dev-not-a-real-secret

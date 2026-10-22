@@ -1,0 +1,59 @@
+#cloud-config
+# Runs once, at first boot. Changing this file does NOT update a running
+# instance — see lifecycle.ignore_changes in modules/app_instance.
+
+users:
+  - default
+  - name: ${admin_user}
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+%{ if ssh_public_key != null ~}
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ endif ~}
+
+package_update: true
+packages:
+  - docker.io
+  - ufw
+
+write_files:
+%{ for path, content in app_files ~}
+  - path: /opt/${app_name}/${path}
+    encoding: b64
+    content: ${content}
+%{ endfor ~}
+  - path: /etc/systemd/system/${app_name}.service
+    content: |
+      [Unit]
+      Description=${app_name} container
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Restart=always
+      RestartSec=5
+      ExecStartPre=-/usr/bin/docker rm -f ${app_name}
+      # Host networking: no Docker port publishing, so Docker doesn't insert
+      # iptables rules that bypass ufw. The host firewall stays authoritative.
+      ExecStart=/usr/bin/docker run --rm --name ${app_name} --network host ${app_name}:local
+      ExecStop=/usr/bin/docker stop ${app_name}
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # Host firewall first: deny everything inbound except the app port and SSH
+  # from the same single CIDR the security group allows.
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow proto tcp from ${ssh_allowed_cidr} to any port 22
+  - ufw allow ${app_port}/tcp
+  - ufw --force enable
+  # Build the real intern-task-app image, then hand it to systemd.
+  - systemctl enable --now docker
+  - docker build -t ${app_name}:local /opt/${app_name}
+  - systemctl daemon-reload
+  - systemctl enable --now ${app_name}.service
