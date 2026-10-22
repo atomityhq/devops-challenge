@@ -44,9 +44,11 @@ variable "ssh_allowed_cidr" {
   description = "The single CIDR allowed to SSH in, e.g. \"203.0.113.10/32\". No default: there is no sane one."
   type        = string
 
+  # A prefix floor, not just a 0.0.0.0/0 check: 0.0.0.0/1 is half the internet.
+  # /24 still fits a small office range; a single host should be /32.
   validation {
-    condition     = can(cidrnetmask(var.ssh_allowed_cidr)) && var.ssh_allowed_cidr != "0.0.0.0/0"
-    error_message = "ssh_allowed_cidr must be a valid IPv4 CIDR and must not be 0.0.0.0/0."
+    condition     = can(cidrnetmask(var.ssh_allowed_cidr)) && can(regex("/(2[4-9]|3[0-2])$", var.ssh_allowed_cidr))
+    error_message = "ssh_allowed_cidr must be a valid IPv4 CIDR with a prefix of /24 or narrower (e.g. your IP as /32)."
   }
 }
 
