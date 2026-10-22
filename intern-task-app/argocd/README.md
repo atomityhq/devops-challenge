@@ -42,11 +42,4 @@ helm template intern-task-app argocd/charts/web-app -n intern-task-app-prod \
   -f argocd/values/base.yaml -f argocd/values/prod.yaml
 ```
 
-## Local `kind` check (no Argo CD)
-
-Render the dev env and apply it straight to the cluster:
-
-```bash
-helm template intern-task-app argocd/charts/web-app \
-  -f argocd/values/base.yaml -f argocd/values/dev.yaml | kubectl apply -f -
-```
+`k8s/` stays as plain manifests for the take-home's local `kind` check.
