@@ -12,8 +12,9 @@ on:
 jobs:
   floor-check:
     # Syntax/schema only — never builds a cluster, never deploys, never
-    # judges correctness. Confirms the Dockerfile builds and the k8s YAML
-    # is schema-valid; nothing more. The real review is a human's.
+    # judges correctness. Confirms the Dockerfile builds and the Helm chart
+    # renders schema-valid YAML for every env; nothing more. The real review
+    # is a human's.
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -29,5 +30,19 @@ jobs:
           curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
           sudo mv kubeconform /usr/local/bin/
 
-      - name: Kubernetes manifests are schema-valid
-        run: kubeconform -summary -strict k8s/
+      # helm is preinstalled on ubuntu-latest runners.
+      - name: Helm chart lints
+        run: helm lint argocd/charts/web-app -f argocd/values/base.yaml
+
+      - name: Rendered manifests are schema-valid (per env)
+        run: |
+          for values in argocd/values/*.yaml; do
+            env=$(basename "$values" .yaml)
+            [ "$env" = base ] && continue
+            echo "::group::$env"
+            helm template intern-task-app argocd/charts/web-app \
+              -n "intern-task-app-$env" \
+              -f argocd/values/base.yaml -f "$values" \
+              | kubeconform -summary -strict -
+            echo "::endgroup::"
+          done
