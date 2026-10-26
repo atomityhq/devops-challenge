@@ -1,0 +1,79 @@
+#!/bin/bash
+set -euxo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y docker.io ufw sudo
+
+systemctl enable --now docker
+
+if ! id devops >/dev/null 2>&1; then
+  useradd -m -s /bin/bash devops
+fi
+
+usermod -aG docker devops
+
+cat > /etc/sudoers.d/90-devops <<'EOF'
+devops ALL=(ALL) NOPASSWD:ALL
+EOF
+
+chmod 0440 /etc/sudoers.d/90-devops
+visudo -cf /etc/sudoers.d/90-devops
+
+ufw default deny incoming
+ufw default allow outgoing
+
+ufw allow from ${ssh_cidr} to any port 22 proto tcp
+ufw allow ${app_port}/tcp
+
+ufw --force enable
+
+mkdir -p /opt/intern-task-app
+
+printf '%s' '${dockerfile_b64}' \
+  | base64 --decode \
+  > /opt/intern-task-app/Dockerfile
+
+printf '%s' '${app_b64}' \
+  | base64 --decode \
+  > /opt/intern-task-app/app.py
+
+mkdir -p /opt/intern-task-app/app
+
+mv /opt/intern-task-app/app.py \
+   /opt/intern-task-app/app/app.py
+
+docker build \
+  -t intern-task-app:local \
+  /opt/intern-task-app
+
+cat > /etc/systemd/system/intern-task-app.service <<'EOF'
+[Unit]
+Description=Intern Task Python Docker Application
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+ExecStart=/usr/bin/docker run \
+  --rm \
+  --name intern-task-app \
+  -p ${app_port}:${app_port} \
+  intern-task-app:local
+
+ExecStop=/usr/bin/docker stop intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
+
+systemctl is-active --quiet intern-task-app.service
