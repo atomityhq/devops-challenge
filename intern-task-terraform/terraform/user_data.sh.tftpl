@@ -1,0 +1,133 @@
+
+#!/bin/bash
+set -Eeuo pipefail
+
+exec > >(tee -a /var/log/intern-task-bootstrap.log) 2>&1
+
+APP_PORT="${app_port}"
+SSH_CIDR="${ssh_cidr}"
+APP_DIR="/opt/intern-task-app"
+
+export DEBIAN_FRONTEND=noninteractive
+
+# Install Docker, UFW, curl, and CA certificates.
+apt-get update
+apt-get install -y docker.io ufw ca-certificates curl
+
+systemctl enable --now docker
+
+# Create a non-root user with passwordless sudo.
+if ! id devops >/dev/null 2>&1; then
+    useradd --create-home --shell /bin/bash --groups sudo,docker devops
+fi
+
+cat >/etc/sudoers.d/devops <<'SUDOERS'
+devops ALL=(ALL:ALL) NOPASSWD:ALL
+SUDOERS
+
+chmod 0440 /etc/sudoers.d/devops
+visudo -cf /etc/sudoers.d/devops
+
+usermod -aG docker devops
+
+# Create the application build context.
+install -d -m 0755 "$APP_DIR/app"
+
+cat >"$APP_DIR/app/app.py" <<'PYTHON'
+import http.server
+import os
+
+PORT = int(os.environ.get("PORT", "5000"))
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/healthz":
+            body = b"ok\n"
+        else:
+            body = b"hello from intern-task-app\n"
+
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, fmt, *args):
+        pass
+
+
+if __name__ == "__main__":
+    print(f"listening on 0.0.0.0:{PORT}", flush=True)
+    http.server.HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+PYTHON
+
+cat >"$APP_DIR/Dockerfile" <<'DOCKERFILE'
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=5000
+
+WORKDIR /app
+
+RUN groupadd --system appgroup \
+    && useradd --system --gid appgroup --no-create-home appuser
+
+COPY --chown=appuser:appgroup app/app.py ./app.py
+
+USER appuser
+
+EXPOSE 5000
+
+CMD ["python", "app.py"]
+DOCKERFILE
+
+# Build the actual intern-task-app image.
+docker build --pull -t intern-task-app:local "$APP_DIR"
+
+# Create a systemd service to run and restart the container.
+cat >/etc/systemd/system/intern-task-app.service <<UNIT
+[Unit]
+Description=Intern Task Application Container
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --rm --name intern-task-app -p ${app_port}:${app_port} -e PORT=${app_port} intern-task-app:local
+ExecStop=/usr/bin/docker stop -t 10 intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
+
+# Configure a default-deny inbound firewall.
+# Allow SSH only from the configured trusted CIDR,
+# and allow inbound application traffic on its listening port.
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow from "$SSH_CIDR" to any port 22 proto tcp
+ufw allow "$APP_PORT/tcp"
+ufw --force enable
+
+# Wait for the application health endpoint.
+for attempt in $(seq 1 30); do
+    if curl --fail --silent "http://127.0.0.1:$${APP_PORT}/healthz" >/dev/null; then
+        echo "Application health check passed."
+        exit 0
+    fi
+
+    sleep 2
+done
+
+echo "Application health check failed." >&2
+systemctl status intern-task-app.service --no-pager || true
+exit 1
