@@ -1,0 +1,43 @@
+#cloud-config
+users:
+  - default
+  - name: deploy
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+
+packages:
+  - docker.io
+
+write_files:
+  - path: /opt/intern-task-app/Dockerfile
+    encoding: b64
+    content: ${base64encode(dockerfile)}
+  - path: /opt/intern-task-app/app/app.py
+    encoding: b64
+    content: ${base64encode(app_py)}
+  - path: /etc/systemd/system/intern-task-app.service
+    content: |
+      [Unit]
+      Description=intern-task-app container
+      After=docker.service
+      Requires=docker.service
+
+      [Service]
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --rm --name intern-task-app -p ${app_port}:${app_port} intern-task-app:local
+      ExecStop=/usr/bin/docker stop intern-task-app
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow ${app_port}/tcp
+  - ufw --force enable
+  - docker build -t intern-task-app:local /opt/intern-task-app
+  - systemctl daemon-reload
+  - systemctl enable --now intern-task-app
+

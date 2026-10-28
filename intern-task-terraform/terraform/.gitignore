@@ -1,0 +1,7 @@
+# Provider binaries, re-created by `terraform init`
+.terraform/
+
+# Local state and plan files; nothing is ever applied here
+*.tfstate
+*.tfstate.*
+*.tfplan
