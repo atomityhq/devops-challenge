@@ -1,0 +1,60 @@
+#cloud-config
+users:
+  - default
+  - name: ${admin_user}
+    gecos: intern-task admin
+    shell: /bin/bash
+    groups: [sudo]
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+%{ if admin_ssh_public_key != "" ~}
+    ssh_authorized_keys:
+      - ${admin_ssh_public_key}
+%{ endif ~}
+
+package_update: true
+packages:
+  - docker.io
+  - ufw
+
+write_files:
+  - path: /opt/intern-task-app/Dockerfile
+    encoding: b64
+    content: ${dockerfile_b64}
+  - path: /opt/intern-task-app/.dockerignore
+    encoding: b64
+    content: ${dockerignore_b64}
+  - path: /opt/intern-task-app/app/app.py
+    encoding: b64
+    content: ${app_py_b64}
+  - path: /etc/systemd/system/intern-task-app.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=intern-task-app container
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Restart=always
+      RestartSec=5
+      TimeoutStopSec=15
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host --read-only --cap-drop ALL --security-opt no-new-privileges intern-task-app:local
+      ExecStop=/usr/bin/docker stop intern-task-app
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - usermod -aG docker ${admin_user}
+  - systemctl enable --now docker
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow from ${ssh_cidr} to any port 22 proto tcp
+  - ufw allow ${app_port}/tcp
+  - ufw --force enable
+  - docker build -t intern-task-app:local /opt/intern-task-app
+  - systemctl daemon-reload
+  - systemctl enable --now intern-task-app.service
