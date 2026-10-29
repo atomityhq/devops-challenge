@@ -1,0 +1,85 @@
+#!/bin/bash
+set -euxo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y docker.io ufw sudo
+systemctl enable --now docker
+
+if ! id appuser >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash appuser
+fi
+usermod -aG docker appuser
+printf '%s\n' 'appuser ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/appuser
+chmod 0440 /etc/sudoers.d/appuser
+
+install -d -m 0755 /opt/intern-task-app/app
+echo '${dockerfile_b64}' | base64 -d > /opt/intern-task-app/Dockerfile
+echo '${app_py_b64}' | base64 -d > /opt/intern-task-app/app/app.py
+
+cd /opt/intern-task-app
+docker build -t intern-task-app:local .
+
+cat > /etc/systemd/system/intern-task-app.service <<'UNIT'
+[Unit]
+Description=Intern Task Python Application Container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --rm --name intern-task-app -p 5000:5000 intern-task-app:local
+ExecStop=/usr/bin/docker stop -t 10 intern-task-app
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
+
+
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow from ${ssh_cidr} to any port 22 proto tcp
+ufw allow 5000/tcp
+ufw --force enable
+
+# Keep Docker-published ports restricted after reboot.
+apt-get install -y iptables-persistent
+
+cat > /usr/local/sbin/intern-task-firewall.sh <<'FIREWALL'
+#!/bin/bash
+set -e
+iptables -C DOCKER-USER -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 1 -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -C DOCKER-USER -i eth0 -p tcp --dport 5000 -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER 2 -i eth0 -p tcp --dport 5000 -j ACCEPT
+iptables -C DOCKER-USER -i eth0 -j DROP 2>/dev/null || iptables -A DOCKER-USER -i eth0 -j DROP
+netfilter-persistent save
+FIREWALL
+
+chmod 0755 /usr/local/sbin/intern-task-firewall.sh
+
+cat > /etc/systemd/system/intern-task-firewall.service <<'UNIT'
+[Unit]
+Description=Intern task Docker firewall
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/intern-task-firewall.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now intern-task-firewall.service
+
+# Restrict forwarded Docker traffic to the application port.
+iptables -I DOCKER-USER -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -I DOCKER-USER -i eth0 -p tcp --dport 5000 -j ACCEPT
+iptables -I DOCKER-USER -i eth0 -j DROP
