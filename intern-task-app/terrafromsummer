@@ -1,0 +1,58 @@
+## Summary
+
+This PR addresses the intern Terraform task in two separate areas:
+
+1. Terraform infrastructure and application bootstrapping.
+2. Fixes to the existing GitHub Actions CI pipeline.
+
+## 1. Terraform Implementation
+
+Implemented the Terraform configuration under ``.
+
+Changes include:
+
+- Configured the AWS provider to support planning with fake credentials.
+- Added a VPC, public subnet, internet gateway, public route table, and route-table association.
+- Configured an EC2 instance with a public IP.
+- Added a security group that restricts SSH to a configurable CIDR and allows inbound traffic on the application's actual port.
+- Added variables for the AMI, instance type, networking, SSH source CIDR, application port, and application repository.
+- Added cloud-init bootstrapping to create a non-root user with passwordless sudo, install Docker, and build the actual application image.
+- Added a systemd service to manage the application container across reboots.
+- Enabled a host firewall with restricted inbound traffic.
+- Added outputs for the instance's public IP and application port.
+
+### User Data Lifecycle
+
+Configured:
+
+```hcl
+lifecycle {
+  ignore_changes = [user_data]
+}
+```
+
+This prevents subsequent changes to the `user_data` attribute from triggering an instance replacement through that attribute.
+
+The trade-off is that changes to the bootstrap script are not automatically applied to an existing instance.
+
+## 2. CI Pipeline Fixes
+
+Updated `.github/workflows/intern-task-terraform-ci.yml` to address the workflow defects identified during CI execution.
+
+Actual issues found:
+
+- [Describe the first confirmed pipeline defect.]
+- [Describe the next defect revealed after the first fix.]
+
+The workflow is intended to run Terraform formatting, initialization, validation, and planning from the correct directory using fake AWS credentials.
+
+## Validation
+
+- [ ] `terraform fmt -check`
+- [ ] `terraform init`
+- [ ] `terraform validate`
+- [ ] `terraform plan` with fake credentials
+- [ ] Confirmed an unrelated tag change does not trigger instance replacement because of `user_data`
+- [ ] GitHub Actions CI passes
+
+No AWS deployment was performed. The infrastructure was validated through Terraform planning as required by the task.

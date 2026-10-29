@@ -1,0 +1,58 @@
+# Add Dockerfile and Kubernetes Deployment for intern-task-app
+
+## Summary
+
+Added Docker and Kubernetes configuration to containerize and deploy the `intern-task-app` Python HTTP service.
+
+## Changes Made
+
+- Added a Dockerfile using the lightweight `python:3.12-slim` base image.
+- Configured the application to listen on port 8080 using the `PORT` environment variable.
+- Configured the container to run as a non-root user.
+- Added a Kubernetes Deployment named `intern-task-app`.
+- Added readiness and liveness HTTP probes targeting `/healthz`.
+- Configured CPU and memory requests and limits.
+- Added a ClusterIP Service exposing port 80 and forwarding traffic to container port 8080.
+- Set `imagePullPolicy: Never` because the image is built locally and loaded into the kind cluster.
+
+## Verification
+
+Commands used:
+
+```bash
+docker build -t intern-task-app:local .
+
+docker run --rm -d \
+  --name intern-task-app-test \
+  -p 8080:8080 \
+  -e PORT=8080 \
+  intern-task-app:local
+
+curl -i http://localhost:8080/healthz
+curl -i http://localhost:8080/
+
+docker stop intern-task-app-test
+
+kind create cluster --name intern-task
+
+kind load docker-image intern-task-app:local --name intern-task
+
+kubectl apply -f k8s/
+
+kubectl rollout status deployment/intern-task-app --timeout=60s
+
+kubectl port-forward svc/intern-task-app 8080:80
+```
+
+Also tested the `/healthz` and `/` endpoints through the Kubernetes Service.
+
+**Before submitting:** Remove any verification claim above that you have not actually completed. If you reused an existing kind cluster, adjust the command list accordingly.
+
+## Design Decisions
+
+- Used `python:3.12-slim` to keep the image relatively lightweight.
+- Used a non-root user to reduce container privileges.
+- Set the application port to 8080 consistently across Docker and Kubernetes.
+- Used `imagePullPolicy: Never` to ensure Kubernetes uses the locally loaded image.
+- Used separate readiness and liveness probes to check application availability and health.
+- Used a ClusterIP Service because the task requires local access and does not require external exposure.
