@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euxo pipefail
+
+exec > >(tee /var/log/intern-task-bootstrap.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+# Create a dedicated non-root administrator with passwordless sudo.
+if ! id devops >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash devops
+fi
+
+printf '%s\n' 'devops ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/devops
+chmod 0440 /etc/sudoers.d/devops
+visudo -cf /etc/sudoers.d/devops
+
+# Install and enable Docker on Amazon Linux 2.
+amazon-linux-extras install docker -y
+yum install -y firewalld
+systemctl enable --now docker
+
+usermod -aG docker devops
+
+# Default-deny inbound traffic; allow SSH only from the configured CIDR
+# and allow the application's actual port.
+systemctl enable --now firewalld
+firewall-cmd --permanent --zone=public --set-target=DROP
+firewall-cmd --permanent --zone=public --remove-service=ssh || true
+firewall-cmd --permanent --zone=public --remove-service=dhcpv6-client || true
+firewall-cmd --permanent --zone=public --add-rich-rule='rule family="ipv4" source address="${ssh_allowed_cidr}" port port="22" protocol="tcp" accept'
+firewall-cmd --permanent --zone=public --add-port=${app_port}/tcp
+firewall-cmd --reload
+
+# Copy the exact Dockerfile and application source from Task 1 into the host.
+mkdir -p /opt/intern-task-app/app
+echo '${dockerfile_b64}' | base64 --decode > /opt/intern-task-app/Dockerfile
+echo '${app_py_b64}' | base64 --decode > /opt/intern-task-app/app/app.py
+
+# Build the real Task 1 application image.
+docker build -t intern-task-app:local /opt/intern-task-app
+
+# Let systemd manage the foreground container process and restart it after
+# failures or host reboots.
+cat > /etc/systemd/system/intern-task-app.service <<'SERVICE'
+[Unit]
+Description=Intern Task Application Container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --name intern-task-app --network host intern-task-app:local
+ExecStop=/usr/bin/docker stop --time 10 intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
