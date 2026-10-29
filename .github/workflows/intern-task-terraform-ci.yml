@@ -1,3 +1,4 @@
+
 name: intern-task-terraform ci
 
 on:
@@ -13,13 +14,16 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./intern-task-terraform
+
     env:
-      # Fake, not secret — these never touch a real AWS account. They only
-      # work because the module's provider block sets skip_credentials_validation
-      # (see the task README). Nothing here is ever applied.
       AWS_ACCESS_KEY_ID: fake
       AWS_SECRET_ACCESS_KEY: fake
       AWS_DEFAULT_REGION: us-east-1
+
     steps:
       - uses: actions/checkout@v4
 
@@ -30,8 +34,11 @@ jobs:
       - name: Format check
         run: terraform fmt -check -recursive
 
+      - name: Initialize Terraform
+        run: terraform init -backend=false -input=false
+
       - name: Validate
         run: terraform validate
 
       - name: Plan
-        run: terraform plan
+        run: terraform plan -input=false
