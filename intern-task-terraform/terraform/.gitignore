@@ -1,0 +1,10 @@
+# Terraform working directory and generated state
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Terraform variable files may contain sensitive values
+*.tfvars
+*.tfvars.json

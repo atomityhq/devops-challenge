@@ -1,0 +1,65 @@
+#!/bin/bash
+set -euxo pipefail
+
+APP_PORT="${app_port}"
+SSH_CIDR="${ssh_cidr}"
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y docker.io ufw
+
+systemctl enable --now docker
+
+# Create a non-root administrator with passwordless sudo.
+if ! id devops >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash devops
+fi
+
+usermod -aG sudo,docker devops
+printf '%s\n' 'devops ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/devops
+chmod 0440 /etc/sudoers.d/devops
+visudo -cf /etc/sudoers.d/devops
+
+# Install the actual application source and Dockerfile from Task 1.
+install -d -m 0755 /opt/intern-task-app/app
+
+printf '%s' '${dockerfile_b64}' | base64 -d > /opt/intern-task-app/Dockerfile
+printf '%s' '${app_py_b64}' | base64 -d > /opt/intern-task-app/app/app.py
+
+chmod 0644 /opt/intern-task-app/Dockerfile
+chmod 0644 /opt/intern-task-app/app/app.py
+
+docker build -t intern-task-app:local /opt/intern-task-app
+
+# Run the container under systemd so it returns after a reboot.
+cat > /etc/systemd/system/intern-task-app.service <<'SERVICE'
+[Unit]
+Description=Intern Task Application Container
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --rm --name intern-task-app -p ${app_port}:${app_port} intern-task-app:local
+ExecStop=/usr/bin/docker stop -t 10 intern-task-app
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
+
+# Restrict inbound host traffic.
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow from "$${SSH_CIDR}" to any port 22 proto tcp
+ufw allow "$${APP_PORT}/tcp"
+ufw --force enable
