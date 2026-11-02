@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euxo pipefail
+
+APP_DIR="/opt/intern-task-app"
+APP_PORT="$${APP_PORT}"
+
+
+useradd --create-home --shell /bin/bash devops || true
+usermod -aG wheel devops
+
+cat >/etc/sudoers.d/devops <<'SUDOERS'
+devops ALL=(ALL) NOPASSWD:ALL
+SUDOERS
+
+chmod 0440 /etc/sudoers.d/devops
+visudo -cf /etc/sudoers.d/devops
+
+yum update -y
+amazon-linux-extras install docker -y
+yum install -y firewalld
+
+systemctl enable --now docker
+systemctl enable --now firewalld
+
+usermod -aG docker devops
+
+mkdir -p "$APP_DIR/app"
+
+echo '${dockerfile_b64}' | base64 --decode >"$APP_DIR/Dockerfile"
+echo '${app_py_b64}' | base64 --decode >"$APP_DIR/app/app.py"
+
+docker build -t intern-task-app:local "$APP_DIR"
+
+firewall-cmd --permanent --zone=public --remove-all-services
+firewall-cmd --permanent --zone=public --remove-all-ports
+firewall-cmd --permanent --zone=public --add-service=ssh
+firewall-cmd --permanent --zone=public --add-port="${APP_PORT}/tcp"
+firewall-cmd --reload
+
+
+cat >/etc/systemd/system/intern-task-app.service <<'SERVICE'
+[Unit]
+Description=Intern Task Python Application Container
+Requires=docker.service
+After=docker.service firewalld.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --name intern-task-app --publish 5000:5000 intern-task-app:local
+ExecStop=/usr/bin/docker stop intern-task-app
+ExecStopPost=-/usr/bin/docker rm -f intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
