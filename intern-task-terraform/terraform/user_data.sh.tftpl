@@ -1,0 +1,52 @@
+#!/bin/bash
+set -euxo pipefail
+
+# Install Docker and the host firewall.
+amazon-linux-extras install docker -y
+yum install -y firewalld
+
+# Create a non-root administrator with passwordless sudo.
+useradd --create-home --shell /bin/bash appadmin
+usermod -aG wheel,docker appadmin
+echo 'appadmin ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/appadmin
+chmod 0440 /etc/sudoers.d/appadmin
+
+# Start Docker.
+systemctl enable --now docker
+
+# Transfer the real application source and Dockerfile.
+mkdir -p /opt/intern-task-app/app
+echo '${app_source_b64}' | base64 -d > /opt/intern-task-app/app/app.py
+echo '${dockerfile_b64}' | base64 -d > /opt/intern-task-app/Dockerfile
+
+# Build the same application image used in the containerization task.
+docker build -t intern-task-app:latest /opt/intern-task-app
+
+# Configure the host firewall.
+systemctl enable --now firewalld
+firewall-cmd --set-default-zone=drop
+firewall-cmd --permanent --zone=drop --add-rich-rule='rule family="ipv4" source address="${ssh_allowed_cidr}" port port="22" protocol="tcp" accept'
+firewall-cmd --permanent --zone=drop --add-port=${app_port}/tcp
+firewall-cmd --reload
+
+# Run the application as a systemd-managed container.
+cat > /etc/systemd/system/intern-task-app.service <<'SERVICE'
+[Unit]
+Description=Intern Task Application Container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host intern-task-app:latest
+ExecStop=/usr/bin/docker stop intern-task-app
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
