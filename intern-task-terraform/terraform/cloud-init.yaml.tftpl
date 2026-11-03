@@ -1,0 +1,69 @@
+#cloud-config
+package_update: true
+
+packages:
+  - docker.io
+  - ufw
+  - sudo
+  - curl
+
+users:
+  - default
+  - name: appadmin
+    shell: /bin/bash
+    groups: [sudo]
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    lock_passwd: true
+
+write_files:
+  - path: /opt/${app_name}/Dockerfile
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${dockerfile_b64}
+
+  - path: /opt/${app_name}/app/app.py
+    owner: root:root
+    permissions: '0644'
+    encoding: b64
+    content: ${app_source_b64}
+
+  - path: /etc/systemd/system/${app_name}.service
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Intern task application container
+      Requires=docker.service ufw.service
+      Wants=network-online.target
+      After=network-online.target docker.service ufw.service
+      PartOf=docker.service
+
+      [Service]
+      Type=simple
+      Restart=always
+      RestartSec=5
+      ExecStartPre=-/usr/bin/docker rm -f ${app_name}
+      ExecStart=/usr/bin/docker run --rm --name ${app_name} --network host ${app_name}:local
+      ExecStop=/usr/bin/docker stop -t 20 ${app_name}
+      TimeoutStopSec=30
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - |
+    set -eu
+
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow ${app_port}/tcp
+    ufw --force enable
+
+    systemctl enable --now docker.service
+    docker build --tag ${app_name}:local /opt/${app_name}
+
+    systemctl daemon-reload
+    systemctl enable --now ${app_name}.service
+
+    curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 --max-time 5 http://127.0.0.1:${app_port}/healthz
