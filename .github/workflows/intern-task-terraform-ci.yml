@@ -4,15 +4,33 @@ on:
   pull_request:
     paths:
       - "intern-task-terraform/**"
+      - "intern-task-app/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
+
   push:
     branches: [main]
     paths:
       - "intern-task-terraform/**"
+      - "intern-task-app/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
+
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: intern-task-terraform/terraform
+
+    env:
+      TF_IN_AUTOMATION: "true"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +40,9 @@ jobs:
 
       - name: Format check
         run: terraform fmt -check -recursive
+
+      - name: Init
+        run: terraform init -input=false
 
       - name: Validate
         run: terraform validate
