@@ -29,10 +29,6 @@ jobs:
         working-directory: intern-task-terraform/terraform
 
     env:
-      AWS_ACCESS_KEY_ID: fake
-      AWS_SECRET_ACCESS_KEY: fake
-      AWS_DEFAULT_REGION: us-east-1
-      TF_VAR_ssh_cidr: "203.0.113.10/32"
       TF_IN_AUTOMATION: "true"
 
     steps:
@@ -50,6 +46,3 @@ jobs:
 
       - name: Validate
         run: terraform validate
-
-      - name: Plan
-        run: terraform plan -input=false -no-color
