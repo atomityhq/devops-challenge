@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+spec:
+  # A single replica is enough for this small local demo service.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: intern-task-app
+  template:
+    metadata:
+      labels:
+        app: intern-task-app
+    spec:
+      # Match the fixed non-root UID/GID created by the Dockerfile.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: intern-task-app
+          # Build this exact tag, then load it into Minikube before applying.
+          image: intern-task-app:local
+          # The image is local to the cluster node; do not try a registry.
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          env:
+            # Keep the app, container port, probes, and Service target aligned.
+            - name: PORT
+              value: "5000"
+          # Give Python time to start before readiness/liveness checks begin.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 1
+            timeoutSeconds: 2
+            failureThreshold: 30
+          # Only mark the pod ready once its HTTP endpoint responds.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Restart the container if the app stops responding.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Small bounded resources suit the dependency-free Python service.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          # These restrictions are compatible with the Dockerfile runtime.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
