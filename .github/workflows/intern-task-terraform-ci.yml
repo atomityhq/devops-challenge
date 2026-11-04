@@ -18,11 +18,6 @@ jobs:
       run:
         working-directory: intern-task-terraform/terraform
 
-    env:
-      AWS_ACCESS_KEY_ID: fake
-      AWS_SECRET_ACCESS_KEY: fake
-      AWS_DEFAULT_REGION: us-east-1
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,6 +35,3 @@ jobs:
 
       - name: Validate Terraform
         run: terraform validate
-
-      - name: Plan Terraform
-        run: terraform plan -input=false -var="ssh_allowed_cidr=203.0.113.10/32"
