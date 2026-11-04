@@ -12,6 +12,76 @@ to touch anything outside this folder:
 - A `Dockerfile` that builds and runs the app.
 - `k8s/deployment.yaml` and `k8s/service.yaml` that deploy it.
 
+## Implementation Overview
+
+This implementation containerizes the existing Python HTTP application and deploys it to a local Kubernetes cluster using Kind.
+
+### Docker Configuration
+
+The application is packaged using the official `python:3.14-slim` base image.
+
+The Dockerfile:
+- Sets `/app` as the working directory.
+- Copies the application source into the image.
+- Sets `PORT=8080` as the application listening port.
+- Exposes port `8080`.
+- Starts the application using Python.
+
+The application listens on `0.0.0.0:8080` inside the container.
+
+### Kubernetes Configuration
+
+The application is deployed using two Kubernetes resources:
+
+**Deployment**
+- Name: `intern-task-app`
+- Replicas: `1`
+- Pod label: `app: intern-task-app`
+- Container image: `intern-task-app:local`
+- Image pull policy: `IfNotPresent`
+- Container port: `8080`
+- Readiness and liveness probes: HTTP GET `/healthz`
+
+**Service**
+- Name: `intern-task-app`
+- Type: `ClusterIP`
+- Service port: `80`
+- Target port: `8080`
+- Pod selector: `app: intern-task-app`
+
+The Service routes traffic from port `80` to port `8080` on the application container.
+
+### Design Decisions
+
+- **Python slim image:** Uses a smaller Python base image rather than a full operating-system image.
+- **Port configuration:** Sets the application port to `8080` and keeps the container, probes, and Service target port consistent.
+- **IfNotPresent image policy:** Allows Kubernetes to use the locally loaded image without requiring a registry pull.
+- **HTTP health probes:** Both probes check `/healthz` to monitor application readiness and container health.
+
+### Local Deployment and Verification
+
+The implementation was tested using Docker and a local Kind Kubernetes cluster.
+
+Verification included:
+- Building the Docker image successfully.
+- Running the application directly in Docker.
+- Confirming that `/healthz` returned HTTP `200 OK` with `ok`.
+- Confirming that `/` returned HTTP `200 OK` with `hello from intern-task`.
+- Loading the local image into the Kind cluster.
+- Successfully deploying the Kubernetes resources.
+- Confirming that the Deployment rolled out and the Pod became ready.
+- Testing both application endpoints through the Kubernetes Service using port-forwarding.
+
+### Cleanup
+
+To delete the local Kind cluster after testing:
+
+```bash
+kind delete cluster --name intern-task
+```
+
+This removes the local Kubernetes cluster and its resources.
+
 ### The app, as given
 
 - Reads its listen port from the `PORT` environment variable, defaulting to

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: intern-task-app
+
+  template:
+    metadata:
+      labels:
+        app: intern-task-app
+
+    spec:
+      containers:
+        - name: intern-task-app
+          image: intern-task-app:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 15

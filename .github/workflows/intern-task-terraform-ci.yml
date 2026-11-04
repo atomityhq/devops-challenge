@@ -13,15 +13,25 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+    defaults:
+      run:
+        working-directory: intern-task-terraform/terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.12.0"
 
       - name: Format check
         run: terraform fmt -check -recursive
 
-      - name: Validate
+      - name: Initialize Terraform
+        run: terraform init -input=false
+
+      - name: Validate Terraform
         run: terraform validate
