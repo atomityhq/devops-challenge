@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: intern-task-app
+
+spec:
+  # Find Pods carrying this exact label.
+  selector:
+    app: intern-task-app
+
+  ports:
+    - name: http
+      protocol: TCP
+
+      # Port exposed by the Kubernetes Service.
+      port: 80
+
+      # Forward traffic to the application's container port.
+      targetPort: http
+
+  # Expose the Service internally within the cluster.
+  type: ClusterIP
