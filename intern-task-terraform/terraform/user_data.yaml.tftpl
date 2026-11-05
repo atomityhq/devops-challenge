@@ -1,0 +1,56 @@
+#cloud-config
+users:
+  - name: ${admin_user}
+    gecos: Deploy user
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+%{ if ssh_public_key != "" ~}
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ endif ~}
+
+package_update: true
+packages:
+  - docker.io
+  - ufw
+  - curl
+
+write_files:
+  - path: /opt/intern-task-app/Dockerfile
+    encoding: b64
+    permissions: "0644"
+    content: ${dockerfile_b64}
+  - path: /opt/intern-task-app/app/app.py
+    encoding: b64
+    permissions: "0644"
+    content: ${app_py_b64}
+  - path: /etc/systemd/system/intern-task-app.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=intern-task-app container
+      After=docker.service network-online.target
+      Requires=docker.service
+
+      [Service]
+      Restart=always
+      RestartSec=3
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host -e PORT=${app_port} intern-task-app:local
+      ExecStop=/usr/bin/docker stop intern-task-app
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl enable --now docker
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp
+  - ufw allow ${app_port}/tcp
+  - ufw --force enable
+  - docker build -t intern-task-app:local /opt/intern-task-app
+  - systemctl daemon-reload
+  - systemctl enable --now intern-task-app.service
+  - ['sh', '-c', 'for i in $(seq 1 30); do curl -sf http://127.0.0.1:${app_port}/healthz && exit 0; sleep 2; done; exit 1']
