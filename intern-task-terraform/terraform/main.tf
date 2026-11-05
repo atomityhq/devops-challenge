@@ -99,7 +99,6 @@ resource "aws_instance" "app" {
     dockerfile_b64  = base64encode(file("${path.module}/../../intern-task-app/Dockerfile"))
   })
 
-  # Do not replace the instance just because user_data changes.
   user_data_replace_on_change = false
 
   tags = {
