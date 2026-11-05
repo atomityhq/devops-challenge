@@ -3,8 +3,6 @@ set -euxo pipefail
 
 # Create a non-root user with passwordless sudo
 id appuser || useradd --create-home --shell /bin/bash appuser
-usermod -aG docker appuser 2>/dev/null || true
-
 echo "appuser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/appuser
 chmod 0440 /etc/sudoers.d/appuser
 visudo -cf /etc/sudoers.d/appuser
@@ -14,6 +12,8 @@ apt-get update
 apt-get install -y docker.io ufw
 
 systemctl enable --now docker
+
+usermod -aG docker appuser 2>/dev/null || true
 
 # Copy the actual app source and Dockerfile onto the instance
 mkdir -p /opt/intern-task-app/app

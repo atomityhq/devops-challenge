@@ -92,10 +92,10 @@ resource "aws_instance" "app" {
   associate_public_ip_address = true
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    app_port        = var.app_port
-    ssh_cidr        = var.ssh_cidr
-    app_source_b64  = base64encode(file("${path.module}/../../intern-task-app/app/app.py"))
-    dockerfile_b64  = base64encode(file("${path.module}/../../intern-task-app/Dockerfile"))
+    app_port       = var.app_port
+    ssh_cidr       = var.ssh_cidr
+    app_source_b64 = base64encode(file("${path.module}/../../intern-task-app/app/app.py"))
+    dockerfile_b64 = base64encode(file("${path.module}/../../intern-task-app/Dockerfile"))
   })
 
   user_data_replace_on_change = false
