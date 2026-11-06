@@ -1,0 +1,53 @@
+#!/bin/bash
+set -euxo pipefail
+
+# 1. Non-root user with passwordless sudo
+useradd --create-home --shell /bin/bash devops
+usermod -aG sudo devops
+echo "devops ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/devops
+chmod 0440 /etc/sudoers.d/devops
+
+# 2. Install Docker, the host firewall and curl
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io ufw curl
+systemctl enable --now docker
+
+# 3. Put the real Task 1 app on the instance
+mkdir -p /opt/intern-task-app/app
+echo "${dockerfile_b64}" | base64 -d > /opt/intern-task-app/Dockerfile
+echo "${app_py_b64}" | base64 -d > /opt/intern-task-app/app/app.py
+
+# 4. Build the image the same way as in Task 1
+cd /opt/intern-task-app
+docker build -t intern-task-app:local .
+
+# 5. Host firewall: deny everything inbound except the app port
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ${app_port}/tcp
+ufw --force enable
+
+# 6. Run the container as a systemd service (restarts, survives reboot)
+cat > /etc/systemd/system/intern-task-app.service <<'UNIT'
+[Unit]
+Description=intern-task-app container
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --name intern-task-app -p ${app_port}:${app_port} intern-task-app:local
+ExecStop=/usr/bin/docker stop intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
+
+# 7. Check that the app really answers
+curl -fsS --retry 10 --retry-connrefused --retry-delay 2 http://localhost:${app_port}/healthz
