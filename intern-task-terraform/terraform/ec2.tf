@@ -13,8 +13,13 @@ resource "aws_instance" "app" {
     app_b64        = filebase64("${path.module}/../../intern-task-app/app/app.py")
   })
 
-  # Do not replace the instance when user_data changes.
+  # Prevent instance replacement when user_data changes.
   user_data_replace_on_change = false
+
+  # Ensure public routing is configured before EC2 boots.
+  depends_on = [
+    aws_route_table_association.public
+  ]
 
   tags = {
     Name = "intern-task-ec2"
