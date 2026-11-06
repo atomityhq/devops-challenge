@@ -1,0 +1,6 @@
+# Downloaded providers — recreated by terraform init
+.terraform/
+
+# Local Terraform state
+*.tfstate
+*.tfstate.*

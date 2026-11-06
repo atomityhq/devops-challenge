@@ -1,0 +1,50 @@
+#cloud-config
+users:
+  - default
+  - name: ${admin_user}
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    ssh_authorized_keys: ${jsonencode(ssh_keys)}
+
+package_update: true
+packages:
+  - docker.io
+  - ufw
+
+write_files:
+  - path: /opt/intern-task-app/Dockerfile
+    encoding: b64
+    content: ${dockerfile_b64}
+  - path: /opt/intern-task-app/app/app.py
+    encoding: b64
+    content: ${app_py_b64}
+
+  - path: /etc/systemd/system/intern-task-app.service
+    content: |
+      [Unit]
+      Description=intern-task-app container
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Restart=always
+      RestartSec=5
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --name intern-task-app --network host intern-task-app:local
+      ExecStop=/usr/bin/docker stop intern-task-app
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, allow, from, "${ssh_allowed_cidr}", to, any, port, "22", proto, tcp]
+  - [ufw, allow, "${app_port}/tcp"]
+  - [ufw, --force, enable]
+  - [systemctl, enable, --now, docker]
+  - [docker, build, -t, "intern-task-app:local", /opt/intern-task-app]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, intern-task-app.service]
