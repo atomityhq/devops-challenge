@@ -1,0 +1,53 @@
+#!/bin/bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y docker.io sudo ufw
+
+systemctl enable --now docker
+
+useradd --create-home --shell /bin/bash deploy
+
+echo 'deploy ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/deploy
+chmod 0440 /etc/sudoers.d/deploy
+visudo -cf /etc/sudoers.d/deploy
+
+install -d -m 0755 /opt/intern-task-app/app
+
+printf '%s' '${dockerfile_base64}' \
+  | base64 --decode > /opt/intern-task-app/Dockerfile
+
+printf '%s' '${app_base64}' \
+  | base64 --decode > /opt/intern-task-app/app/app.py
+
+docker build \
+  -t intern-task-app:local \
+  /opt/intern-task-app
+
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ${app_port}/tcp
+ufw --force enable
+
+cat > /etc/systemd/system/intern-task-app.service <<'EOF'
+[Unit]
+Description=Intern Task Python Container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --name intern-task-app --network host intern-task-app:local
+ExecStop=/usr/bin/docker stop -t 10 intern-task-app
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service

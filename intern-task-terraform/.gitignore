@@ -1,0 +1,17 @@
+# Downloaded providers and module cache
+**/.terraform/
+
+# Local state
+*.tfstate
+*.tfstate.*
+
+# Saved plans
+*.tfplan
+
+# Local variable values
+*.tfvars
+*.tfvars.json
+
+# Crash logs
+crash.log
+crash.*.log
