@@ -1,0 +1,24 @@
+name: Docker CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t intern-task-app:test .
+
+      - name: Test Docker container
+        run: |
+          docker run -d --name intern-test -p 8080:8080 intern-task-app:test
+          sleep 5
+          curl --fail http://localhost:8080/healthz
+          curl --fail http://localhost:8080/
+          docker stop intern-test

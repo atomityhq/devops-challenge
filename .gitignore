@@ -1,0 +1,12 @@
+# Terraform generated files
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/.tfvars
+**/.tfvars.json
+**/tfplan
+**/crash.log
+**/crash.*.log
+
+# Local application archive
+intern-task-app/intern-task-app.tar
