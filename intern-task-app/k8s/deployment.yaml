@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: intern-task-app
+  template:
+    metadata:
+      labels:
+        app: intern-task-app
+    spec:
+      # The app never talks to the API server.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: intern-task-app:local
+          # The image is only ever built locally and `kind load`ed onto the
+          # node; there is no registry. `Never` makes that explicit: if the
+          # image is missing the pod fails fast with ErrImageNeverPull (an
+          # obvious "you forgot kind load") instead of retrying a pull from
+          # docker.io forever. IfNotPresent would also work for a non-:latest
+          # tag, but would silently try a registry if the image were missing.
+          imagePullPolicy: Never
+          env:
+            # Pin the port here too, so the manifest doesn't depend on the
+            # Dockerfile's default staying in sync.
+            - name: PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          # Both probes hit /healthz over HTTP, so they go through the same
+          # single-threaded request loop that serves real traffic: if the
+          # server is wedged or the process is gone, they fail. (A TCP probe
+          # would pass as long as the kernel accepted the connection.)
+          # A short initial delay gives Python time to bind the port, so a
+          # clean start doesn't log a spurious "connection refused" failure.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Liveness is deliberately more tolerant than readiness: a brief
+          # stall should take the pod out of the Service, not restart it.
+          # ~30s of consecutive failures before a restart.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              # No CPU limit: throttling a single-threaded server just adds
+              # latency (and can fail probes) without protecting anything
+              # the request doesn't already reserve. Memory is limited so a
+              # leak gets OOM-killed instead of starving the node.
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
