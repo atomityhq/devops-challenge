@@ -1,0 +1,51 @@
+#cloud-config
+# Rendered by Terraform. String values are emitted with jsonencode(), which
+# is always valid YAML, so nothing interpolated here can break the document.
+
+# Only our admin user; the AMI's default "ubuntu" user is not created.
+users:
+  - name: ${jsonencode(admin_username)}
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    ssh_authorized_keys:
+      - ${jsonencode(trimspace(ssh_public_key))}
+
+disable_root: true
+ssh_pwauth: false
+
+package_update: true
+packages:
+  - docker.io
+  - ufw
+
+write_files:
+  # intern-task-app's build context, embedded verbatim from the repo.
+%{ for path, content in app_files ~}
+  - path: ${jsonencode("${build_dir}/${path}")}
+    encoding: b64
+    content: ${content}
+    owner: root:root
+    permissions: "0644"
+%{ endfor ~}
+  - path: /etc/systemd/system/intern-task-app.service
+    encoding: b64
+    content: ${systemd_unit}
+    owner: root:root
+    permissions: "0644"
+
+runcmd:
+  # Host firewall: deny all inbound except the app port and SSH.
+  # SSH is kept (restricted to the same CIDR as the security group) so the
+  # admin user is actually reachable; everything else is denied.
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, allow, proto, tcp, from, ${jsonencode(ssh_cidr)}, to, any, port, "22"]
+  - [ufw, allow, "${app_port}/tcp"]
+  - [ufw, --force, enable]
+  # Docker, then the app as a systemd-managed container. `enable` makes it
+  # come back after a reboot; `--now` starts it (building the image) now.
+  - [systemctl, enable, --now, docker.service]
+  - [docker, build, -t, "intern-task-app:local", ${jsonencode(build_dir)}]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, intern-task-app.service]

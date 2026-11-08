@@ -4,15 +4,35 @@ on:
   pull_request:
     paths:
       - "intern-task-terraform/**"
+      # The module embeds intern-task-app's Dockerfile and source and reads
+      # the app port from it, so changes there can break this config too.
+      - "intern-task-app/**"
+      # Changes to this workflow must be tested by this workflow.
+      - ".github/workflows/intern-task-terraform-ci.yml"
   push:
     branches: [main]
     paths:
       - "intern-task-terraform/**"
+      - "intern-task-app/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   workflow_dispatch:
+
+# Read-only token: this job never writes to the repo.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # The Terraform lives here, not at the repo root. Running from the
+        # root validates an empty directory and passes vacuously.
+        working-directory: intern-task-terraform/terraform
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +41,12 @@ jobs:
           terraform_version: "1.12.0"
 
       - name: Format check
-        run: terraform fmt -check -recursive
+        run: terraform fmt -check -recursive -diff
+
+      # validate needs providers installed to check resource schemas.
+      # -backend=false: no state or credentials are needed just to validate.
+      - name: Init
+        run: terraform init -backend=false -input=false -lockfile=readonly
 
       - name: Validate
-        run: terraform validate
+        run: terraform validate -no-color

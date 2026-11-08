@@ -1,0 +1,35 @@
+[Unit]
+Description=intern-task-app container
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+# Building can take a while on first start (base image pull).
+TimeoutStartSec=600
+Restart=always
+RestartSec=5
+
+# Build the image if it isn't there yet. Normally cloud-init's first start
+# does this; if that build failed (e.g. a transient network error), the next
+# restart retries it instead of leaving a unit that can never start.
+ExecStartPre=/bin/sh -c 'docker image inspect ${image_tag} >/dev/null 2>&1 || docker build -t ${image_tag} ${build_dir}'
+# Clear out a stale container left by an unclean shutdown.
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+
+# Foreground (no -d) so systemd supervises the container's lifetime.
+# --network host: the app binds directly on the host's port ${app_port}, so
+# the host firewall (ufw, INPUT chain) actually governs it. A bridged
+# `-p ${app_port}:${app_port}` would be DNAT'd through Docker's own iptables
+# chains and bypass ufw entirely.
+ExecStart=/usr/bin/docker run --rm --name intern-task-app \
+  --network host \
+  --env PORT=${app_port} \
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  ${image_tag}
+
+# The image sets STOPSIGNAL SIGINT, which `docker stop` honours.
+ExecStop=/usr/bin/docker stop intern-task-app
+
+[Install]
+WantedBy=multi-user.target
