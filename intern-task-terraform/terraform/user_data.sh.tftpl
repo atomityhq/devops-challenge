@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+APP_PORT="${app_port}"
+LINUX_USER="${linux_user}"
+SSH_CIDR="${ssh_cidr}"
+APP_DIR="/opt/intern-task-app"
+
+if ! id "$${LINUX_USER}" >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash "$${LINUX_USER}"
+fi
+printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$${LINUX_USER}" >/etc/sudoers.d/90-"$${LINUX_USER}"
+chmod 0440 /etc/sudoers.d/90-"$${LINUX_USER}"
+
+if command -v dnf >/dev/null 2>&1; then
+  dnf install -y docker firewalld sudo
+elif command -v yum >/dev/null 2>&1; then
+  yum install -y docker firewalld sudo
+else
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io ufw sudo
+fi
+
+systemctl enable --now docker
+usermod -aG docker "$${LINUX_USER}"
+
+mkdir -p "$${APP_DIR}/app"
+printf '%s' '${app_source_b64}' | base64 --decode >"$${APP_DIR}/app/app.py"
+printf '%s' '${dockerfile_b64}' | base64 --decode >"$${APP_DIR}/Dockerfile"
+docker build --tag intern-task-app:local "$${APP_DIR}"
+
+cat >/etc/systemd/system/intern-task-app.service <<EOF
+[Unit]
+Description=intern-task-app container
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --name intern-task-app -p $${APP_PORT}:$${APP_PORT} -e PORT=$${APP_PORT} intern-task-app:local
+ExecStop=/usr/bin/docker stop --time 10 intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
+
+if command -v firewall-cmd >/dev/null 2>&1; then
+  systemctl enable --now firewalld
+  firewall-cmd --permanent --remove-service=ssh || true
+  firewall-cmd --permanent --add-port="$${APP_PORT}/tcp"
+  firewall-cmd --permanent --add-rich-rule="rule family=ipv4 source address=$${SSH_CIDR} service name=ssh accept"
+  firewall-cmd --reload
+else
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow "$${APP_PORT}/tcp"
+  ufw allow from "$${SSH_CIDR}" to any port 22 proto tcp
+  ufw --force enable
+fi

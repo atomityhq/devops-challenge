@@ -1,7 +1,8 @@
 # intern-task-app
 
-`app/app.py` is a tiny, dependency-free Python HTTP service. There's no
-Dockerfile and no Kubernetes manifests yet — that's the task.
+`app/app.py` is a tiny, dependency-free Python HTTP service. The Dockerfile
+packages it as a non-root container, and the Kubernetes manifests deploy it
+behind a ClusterIP Service.
 
 ## Your task
 
@@ -21,14 +22,26 @@ to touch anything outside this folder:
   to at runtime.
 - Serves `/healthz` (returns `200 ok`) and `/` (returns `200`, some text).
 
-### Requirements
+### Implementation choices
 
 - **Deployment** named `intern-task-app`, pods labeled `app: intern-task-app`,
   with a readiness *and* liveness probe against `/healthz`.
 - **Service** named `intern-task-app`, selecting those pods, exposing port
   `80` and routing it to wherever the app is actually listening.
-- Set `imagePullPolicy` appropriately — this image only ever exists locally
-  (built + `kind load`'d), there's no registry to pull from.
+- `python:3.12-slim` provides the Python runtime and standard library without
+  the size of the full Python image. The app has no third-party dependencies,
+  so a separate build stage would add complexity without a useful artifact.
+- The image creates a fixed, unprivileged UID/GID and Kubernetes enforces the
+  same identity. This avoids running the service as root.
+- `imagePullPolicy: Never` is appropriate because the image is loaded into the
+  local Minikube node and is not published to a registry.
+- A startup probe allows the Python process up to 30 seconds to begin serving
+  `/healthz`; readiness and liveness checks wait until startup succeeds.
+  Readiness keeps an unready pod out of Service traffic. Liveness restarts the
+  container after repeated failures. All probes check the actual HTTP app on
+  port 5000.
+- The Deployment listens on 5000 and the Service maps port 80 to that named
+  container port.
 - Everything should come up clean on a stock local cluster: no
   `ImagePullBackOff`, no failing probes, no manual patching after `apply`.
 
@@ -38,23 +51,29 @@ if you did any of this and why; we're not docking points for skipping it.
 
 ## Verifying it works
 
-Any local Kubernetes works here (`kind`, `k3d`, `minikube`, Docker Desktop's
-built-in cluster). Using `kind`:
+Run from this directory with Docker Desktop available to WSL Ubuntu and the
+Minikube Docker driver configured:
 
 ```bash
 docker build -t intern-task-app:local .
-kind create cluster --name intern-task
-kind load docker-image intern-task-app:local --name intern-task
+minikube start --driver=docker --profile=intern-task
+minikube image load intern-task-app:local -p intern-task
 kubectl apply -f k8s/
 kubectl rollout status deployment/intern-task-app --timeout=60s
 
-kubectl port-forward svc/intern-task-app 8080:80 &
-curl -sf localhost:8080/healthz   # expect: ok
-curl -sf localhost:8080/          # expect: hello from intern-task
+kubectl port-forward svc/intern-task-app 8080:80
 ```
 
-Run this (or your own equivalent) before opening the PR — don't rely on
-the diff looking right by eye.
+In another terminal, run:
+
+```bash
+curl -sf localhost:8080/healthz
+curl -sf localhost:8080/
+```
+
+Expected responses are `ok` and `hello from intern-task`. Also inspect the
+pod status and events for image pull, restart, and probe errors. Do not report
+runtime verification as successful until these commands have completed.
 
 CI on your PR only checks that the Dockerfile builds and the k8s YAML is
 schema-valid — it never spins up a cluster or deploys anything. Passing CI
@@ -79,3 +98,11 @@ docker build -t intern-task-app:local .
 docker run --rm -p 8080:8080 -e PORT=8080 intern-task-app:local
 curl localhost:8080/healthz
 ```
+
+## CI and PR verification
+
+GitHub Actions builds the Docker image and runs
+`kubeconform -summary -strict k8s/` when a pull request changes files under
+`intern-task-app/`. CI performs schema validation only; it does not deploy to
+a Kubernetes cluster. Record the actual CI result and Minikube command output
+in the PR description. Local runtime verification must be completed separately.

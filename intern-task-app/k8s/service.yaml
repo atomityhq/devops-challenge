@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+spec:
+  # Internal cluster service; use kubectl port-forward for local access.
+  type: ClusterIP
+  # Select the Deployment's pods.
+  selector:
+    app: intern-task-app
+  ports:
+    - name: http
+      # Expose the conventional HTTP port and route to the named container port.
+      port: 80
+      targetPort: http
+      protocol: TCP
