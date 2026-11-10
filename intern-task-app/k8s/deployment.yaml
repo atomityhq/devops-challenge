@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+
+spec:
+  # Run one application replica for this challenge.
+  replicas: 1
+
+  # The Deployment manages Pods with this label.
+  selector:
+    matchLabels:
+      app: intern-task-app
+
+  template:
+    metadata:
+      labels:
+        app: intern-task-app
+
+    spec:
+      containers:
+        - name: intern-task-app
+
+          # Use the image we built and loaded into kind.
+          image: intern-task-app:local
+          imagePullPolicy: IfNotPresent
+
+          # The Python application listens on port 5000.
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+
+          # Only send traffic to this Pod once the app is ready.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          # Restart the container if its application becomes unhealthy.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          # Set reasonable resource boundaries for our small application.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
