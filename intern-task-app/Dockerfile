@@ -41,4 +41,4 @@ EXPOSE 5000
 # 8. Start the Application
 # Use exec form so Python runs as the container's
 # main process and receives termination signals directly.
-CMD ["python", "sapp.py"]
+CMD ["python", "app.py"]
