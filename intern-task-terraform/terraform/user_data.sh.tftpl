@@ -1,0 +1,55 @@
+#!/bin/bash
+set -euxo pipefail
+
+exec > >(tee /var/log/atomity-bootstrap.log | logger -t atomity-bootstrap -s 2>/dev/console) 2>&1
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install --yes ca-certificates docker.io sudo ufw
+
+if ! id --user ${admin_user} >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash ${admin_user}
+fi
+
+install --mode 0440 /dev/stdin /etc/sudoers.d/${admin_user} <<'SUDOERS'
+${admin_user} ALL=(ALL) NOPASSWD:ALL
+SUDOERS
+visudo --check --file=/etc/sudoers.d/${admin_user}
+
+usermod --append --groups docker ${admin_user}
+systemctl enable --now docker
+
+install --directory --mode 0755 ${app_context}/app
+printf '%s' '${dockerfile_b64}' | base64 --decode > ${app_context}/Dockerfile
+printf '%s' '${app_py_b64}' | base64 --decode > ${app_context}/app/app.py
+chmod 0644 ${app_context}/Dockerfile ${app_context}/app/app.py
+
+docker build --tag ${app_name}:local ${app_context}
+
+cat > /etc/systemd/system/${app_name}.service <<'UNIT'
+[Unit]
+Description=Intern task application container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f ${app_name}
+ExecStart=/usr/bin/docker run --name ${app_name} --publish ${app_port}:${app_port} --env PORT=${app_port} ${app_name}:local
+ExecStop=/usr/bin/docker stop --time=10 ${app_name}
+ExecStopPost=-/usr/bin/docker rm -f ${app_name}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now ${app_name}.service
+
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow from ${ssh_cidr} to any port 22 proto tcp
+ufw allow ${app_port}/tcp
+ufw --force enable
