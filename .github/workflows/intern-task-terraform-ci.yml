@@ -4,11 +4,26 @@ on:
   pull_request:
     paths:
       - "intern-task-terraform/**"
+      # The workflow file itself. Without this line a PR that changes only
+      # this file triggers no run at all, so the fix ships unexercised.
+      - ".github/workflows/intern-task-terraform-ci.yml"
   push:
     branches: [main]
     paths:
       - "intern-task-terraform/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   workflow_dispatch:
+
+# Nothing here writes to the repository.
+permissions:
+  contents: read
+
+# Every step below acts on the module, not on the repository root. This was
+# missing: `terraform validate` at the root found no configuration files and
+# exited 0, so the job reported success while checking nothing.
+defaults:
+  run:
+    working-directory: intern-task-terraform/terraform
 
 jobs:
   validate:
@@ -20,8 +35,44 @@ jobs:
         with:
           terraform_version: "1.12.0"
 
+      # `terraform validate` cannot resolve required_providers without the
+      # provider plugins on disk. Without this step it fails with
+      # "Missing required provider" - which was invisible until the working
+      # directory above was fixed. -backend=false because this job never
+      # reads or writes state.
+      - name: Init
+        run: terraform init -input=false -backend=false
+
       - name: Format check
         run: terraform fmt -check -recursive
 
       - name: Validate
         run: terraform validate
+
+  # Added deliberately: fmt and validate passing says nothing about whether
+  # the module plans. Upstream removed a plan step because a shared workflow
+  # cannot supply a differently-named required variable for every candidate's
+  # module. This workflow belongs to this module, so the variable name is
+  # known and can be passed literally.
+  plan:
+    runs-on: ubuntu-latest
+    needs: validate
+    env:
+      # Fake, and not secret. They only work because the module's provider
+      # block sets skip_credentials_validation / skip_requesting_account_id /
+      # skip_region_validation, so plan resolves entirely offline.
+      AWS_ACCESS_KEY_ID: fake
+      AWS_SECRET_ACCESS_KEY: fake
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.12.0"
+
+      - name: Init
+        run: terraform init -input=false
+
+      - name: Plan
+        run: terraform plan -input=false -var 'ssh_cidr=203.0.113.10/32'

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+spec:
+  # ClusterIP: the only consumers are in-cluster and port-forward. No cloud
+  # load balancer exists on a stock kind cluster, so NodePort/LoadBalancer
+  # would add surface without adding reachability.
+  type: ClusterIP
+  selector:
+    app: intern-task-app
+  ports:
+    - name: http
+      port: 80
+      # By name, so the pod's port number lives in exactly one place.
+      targetPort: http
+      protocol: TCP

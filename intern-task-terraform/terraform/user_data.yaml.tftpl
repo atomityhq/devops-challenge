@@ -1,0 +1,82 @@
+#cloud-config
+#
+# Rendered at plan time by Terraform templatefile(). Nothing here is produced
+# at boot, so the same plan always yields byte-identical user_data - which is
+# what makes the ignore_changes decision on aws_instance.user_data coherent.
+
+package_update: true
+package_upgrade: false
+
+users:
+  - name: deploy
+    gecos: Application operator
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+    groups: [sudo]
+
+packages:
+  - docker.io
+  - ufw
+
+write_files:
+  - path: /opt/intern-task-app/Dockerfile
+    owner: root:root
+    permissions: "0644"
+    encoding: b64
+    content: ${dockerfile_b64}
+
+  - path: /opt/intern-task-app/app/app.py
+    owner: root:root
+    permissions: "0644"
+    encoding: b64
+    content: ${app_py_b64}
+
+  - path: /etc/systemd/system/intern-task-app.service
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=intern-task-app
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      Restart=always
+      RestartSec=5
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host -e PORT=${app_port} intern-task-app:local
+      ExecStop=-/usr/bin/docker stop -t 10 intern-task-app
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - [systemctl, enable, --now, docker]
+
+  # Build before the firewall comes up: the build needs outbound access to pull
+  # the python:3.12-slim base image.
+  - [docker, build, "-t", intern-task-app:local, /opt/intern-task-app]
+
+  # Rules first, then enable - the other order locks you out.
+  #
+  # --network host is why these INPUT rules are real: with bridge networking
+  # Docker installs DNAT rules that are evaluated before ufw's, so a published
+  # port bypasses ufw entirely. On the host network the app's socket is an
+  # ordinary host socket, so ufw is genuinely in front of it.
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, allow, from, ${ssh_cidr}, to, any, port, 22, proto, tcp]
+  - [ufw, allow, "${app_port}/tcp"]
+  - [ufw, "--force", enable]
+
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, intern-task-app.service]
+
+  # Fail the boot visibly rather than leaving a plausible-looking config.
+  - [systemctl, is-active, "--quiet", intern-task-app.service]
+  - [bash, "-c", "systemctl is-active intern-task-app.service || journalctl -u intern-task-app.service -n 50 --no-pager"]
+
+final_message: "intern-task-app enabled and listening on ${app_port}"
