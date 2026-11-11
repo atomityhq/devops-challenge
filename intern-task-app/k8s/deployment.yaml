@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+spec:
+  # Two replicas so the readiness probe is load-bearing: with maxUnavailable 0
+  # a rolling update cannot take the last serving pod out before a new one is
+  # Ready. With one replica the probe would never be exercised.
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: intern-task-app
+  template:
+    metadata:
+      labels:
+        app: intern-task-app
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: intern-task-app
+          image: intern-task-app:local
+          # This image only ever exists locally (docker build + kind load).
+          # Always would ImagePullBackOff; Never would fail the moment the
+          # same manifest is pointed at a real registry.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
