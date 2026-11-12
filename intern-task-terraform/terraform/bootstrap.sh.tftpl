@@ -1,0 +1,51 @@
+
+#!/bin/bash
+set -euo pipefail
+
+# Install required packages
+dnf install -y docker firewalld
+systemctl enable --now docker
+
+# Create an admin user
+useradd -m -s /bin/bash devops
+usermod -aG wheel devops
+echo "devops ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/devops
+chmod 440 /etc/sudoers.d/devops
+
+# Restore application files
+mkdir -p /opt/intern-task/app
+echo '${dockerfile_b64}' | base64 -d > /opt/intern-task/Dockerfile
+echo '${app_b64}' | base64 -d > /opt/intern-task/app/app.py
+
+# Build the application image
+docker build -t intern-task-app:local /opt/intern-task
+
+# Create a systemd service
+cat > /etc/systemd/system/intern-task-app.service <<'EOF'
+[Unit]
+Description=Intern Task Application
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --rm --name intern-task-app -p 5000:5000 intern-task-app:local
+ExecStop=/usr/bin/docker stop -t 10 intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app
+
+# Configure the host firewall
+systemctl enable --now firewalld
+firewall-cmd --set-default-zone=public
+firewall-cmd --permanent --zone=public --remove-service=ssh
+firewall-cmd --permanent --zone=public --add-port=5000/tcp
+firewall-cmd --reload
