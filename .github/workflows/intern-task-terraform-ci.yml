@@ -2,17 +2,23 @@ name: intern-task-terraform ci
 
 on:
   pull_request:
+    branches: [main]
     paths:
-      - "intern-task-terraform/**"
+      - "intern-task-terraform/terraform/**"
+      - ".github/workflows/**"
   push:
     branches: [main]
     paths:
-      - "intern-task-terraform/**"
+      - "intern-task-terraform/terraform/**"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: intern-task-terraform/terraform/
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +28,11 @@ jobs:
 
       - name: Format check
         run: terraform fmt -check -recursive
+      
+      - name: initialize the working directory
+        run: terraform init -backend=false
 
       - name: Validate
         run: terraform validate
+
+      
