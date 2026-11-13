@@ -1,11 +1,11 @@
 resource "aws_instance" "web" {
-  ami           = var.ami_id
-  instance_type = "t3.micro"
-  subnet_id     = aws_subnet.main.id
-  vpc_security_group_ids = tolist([aws_security_group.example.id]) 
+  ami                         = var.ami_id
+  instance_type               = "t3.micro"
+  subnet_id                   = aws_subnet.main.id
+  vpc_security_group_ids      = tolist([aws_security_group.example.id])
   associate_public_ip_address = true
-  
-user_data = <<-EOF
+
+  user_data = <<-EOF
 #!/bin/bash
 set -e
 export DEBIAN_FRONTEND=noninteractive
