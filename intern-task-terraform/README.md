@@ -21,8 +21,8 @@ arguments: `skip_credentials_validation = true`,
 `skip_requesting_account_id = true`, `skip_region_validation = true`. This
 isn't something to figure out — it's just plumbing: it lets `terraform
 plan` compute a real plan against fake credentials without ever calling
-AWS, which is what both you and CI need since nobody has a real account
-here.
+AWS, which is what you need to actually test this locally since nobody has
+a real account here. CI itself only runs `fmt`/`validate` — see below.
 
 This task builds on [`../intern-task-app/`](../intern-task-app/) — the
 instance you provision here needs to actually run the app from that task,
@@ -82,9 +82,11 @@ misleading (the SSH CIDR — there's no sane default for "my IP").
 
 ## What's wrong with the CI pipeline
 
-Not telling you — that's the point. Run it (via a PR — it'll run
-automatically) and read what actually fails. There's more than one issue;
-fixing the first will surface the second on the next run, not before.
+Not telling you — that's the point. Read the workflow file itself; don't
+assume a green check on your PR means it's fixed. CI only runs `fmt` and
+`validate`, and neither of those actually exercises the pipeline's real
+structural problems — a CI pass here is not the same as having found and
+fixed them. There's more than one issue.
 
 ## Verifying it locally
 
@@ -107,8 +109,8 @@ terraform plan
 terraform plan
 ```
 
-Run this (or just open the PR — CI does the same thing) before asking for
-review.
+Run this yourself before asking for review — CI does not. It only checks
+`fmt`/`validate`, which is a much lower bar than this actually working.
 
 ## What we're looking for in the PR
 
