@@ -6,3 +6,7 @@ variable "ami_id" {
 variable "ssh_cidr_blocks" {
   type = string
 }
+
+variable "instance_name" {
+  type = string
+}

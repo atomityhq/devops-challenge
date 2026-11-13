@@ -62,6 +62,6 @@ EOF
   user_data_replace_on_change = false
 
   tags = {
-    Name = "dev-task"
+    Name = var.instance_name
   }
 }
