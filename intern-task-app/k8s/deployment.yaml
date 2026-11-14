@@ -17,8 +17,6 @@ spec:
       containers:
         - name: intern-task-app
           image: intern-task-app:local
-          # The image only exists in the local kind node (kind load), so never
-          # try to pull it. A missing image then fails loudly as ErrImageNeverPull.
           imagePullPolicy: Never
           ports:
             - name: http
