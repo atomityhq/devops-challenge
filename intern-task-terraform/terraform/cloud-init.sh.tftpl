@@ -1,0 +1,48 @@
+#!/bin/bash
+# Instance: ${instance_name}
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y docker.io ufw sudo
+
+# Créer le compte non-root demandé par le test.
+if ! id appadmin >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash appadmin
+fi
+printf '%s\n' 'appadmin ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/appadmin
+chmod 0440 /etc/sudoers.d/appadmin
+visudo -cf /etc/sudoers.d/appadmin
+
+# Autoriser uniquement le port applicatif sur le pare-feu de l'instance.
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ${app_port}/tcp
+ufw --force enable
+
+# Reconstituer les mêmes fichiers que dans le premier exercice.
+install -d /opt/intern-task-app/app
+printf '%s' '${dockerfile_base64}' | base64 --decode > /opt/intern-task-app/Dockerfile
+printf '%s' '${app_base64}' | base64 --decode > /opt/intern-task-app/app/app.py
+
+systemctl enable --now docker.service
+docker build -t intern-task-app:local /opt/intern-task-app
+
+cat > /etc/systemd/system/intern-task-app.service <<'UNIT'
+[Unit]
+Description=Intern Task Python App
+Requires=docker.service
+After=docker.service
+
+[Service]
+ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host --env PORT=${app_port} intern-task-app:local
+ExecStop=/usr/bin/docker stop intern-task-app
+Restart=on-failure
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
