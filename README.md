@@ -2,9 +2,8 @@
 
 ## Antonio Puceski's solution — start here
 
-The completed implementation is on **`solution/antonio-devops`**. If you opened
-the fork's unchanged `main` branch, switch branches or open
-[the solution directly](https://github.com/AntonioPuceski/devops-challenge/tree/solution/antonio-devops).
+This fork contains the application deployment and Terraform solutions, with
+reproduction commands, design decisions and local verification evidence.
 
 | What to inspect | Link |
 | --- | --- |
@@ -26,15 +25,14 @@ the fork's unchanged `main` branch, switch branches or open
 - Terraform's actual AWS provider produced plans using fake credentials. Mock
   tests exercised a tag update against simulated state, not a live EC2 instance.
 - Cloud-init, shell syntax and the systemd unit passed local configuration checks.
-- **There are no GitHub-hosted CI runs yet.** Local lint/validation results are
-  not GitHub Actions checks. Opening the upstream PR and its resulting CI remain pending.
+- GitHub-hosted checks are available in [Actions](https://github.com/AntonioPuceski/devops-challenge/actions).
+  Local runtime tests and Terraform plans are separate evidence; CI alone does
+  not prove the Kubernetes deployment works.
 - **No AWS infrastructure was deployed.** No EC2 boot, reboot or live firewall
   enforcement test is claimed. This challenge does not require an AWS account.
 - This is a tiny HTTP service returning text, not a visual website. There is no
   hosted application URL or dashboard to open. The public deliverable is the code,
   explanations and evidence below.
-- The submission PR and recruiter email have not been sent. Submission confirms
-  acceptance of the internship terms, which is still awaiting the applicant's decision.
 
 ### Application request path
 

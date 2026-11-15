@@ -4,45 +4,45 @@ tests\lifecycle.tftest.hcl... in progress
 # aws_instance.app:
 resource "aws_instance" "app" {
     ami                                  = "ami-04b4f1a9cf54c11d0"
-    arn                                  = "6vbw7x8a"
+    arn                                  = "8byu24x6"
     associate_public_ip_address          = true
-    availability_zone                    = "17o9qp2f"
+    availability_zone                    = "eh3nqlvs"
     cpu_core_count                       = 0
     cpu_threads_per_core                 = 0
     disable_api_stop                     = false
     disable_api_termination              = false
     ebs_optimized                        = false
     enable_primary_ipv6                  = false
-    host_id                              = "qiatwc2y"
-    host_resource_group_arn              = "tfd6m0zs"
-    iam_instance_profile                 = "qbjodp74"
-    id                                   = "i-0123456789abcdef0"
-    instance_initiated_shutdown_behavior = "zo1uydzx"
-    instance_lifecycle                   = "73okkt8n"
-    instance_state                       = "6avupt3u"
+    host_id                              = "ugkzmq0c"
+    host_resource_group_arn              = "mdhqvyiv"
+    iam_instance_profile                 = "ampr3nfj"
+    id                                   = "c7eg9n9z"
+    instance_initiated_shutdown_behavior = "5o0xbrv4"
+    instance_lifecycle                   = "o5wzmfef"
+    instance_state                       = "u2an30iw"
     instance_type                        = "t3.micro"
     ipv6_address_count                   = 0
     ipv6_addresses                       = []
-    key_name                             = "254omnpj"
+    key_name                             = "ro69cqzo"
     monitoring                           = false
-    outpost_arn                          = "binbn2c4"
-    password_data                        = "5hbdlil7"
-    placement_group                      = "0wy0ytzh"
+    outpost_arn                          = "crjvb85w"
+    password_data                        = "t3opbpcd"
+    placement_group                      = "ty2xxjsw"
     placement_partition_number           = 0
-    primary_network_interface_id         = "kpi8er8w"
-    private_dns                          = "r8ljls0t"
-    private_ip                           = "w6cakzo0"
-    public_dns                           = "03z8fo4k"
-    public_ip                            = "0gxzabxw"
+    primary_network_interface_id         = "sjs7ud1p"
+    private_dns                          = "1r1gwn6f"
+    private_ip                           = "zxhghjwz"
+    public_dns                           = "nzpu5emr"
+    public_ip                            = "oquankac"
     secondary_private_ips                = []
     security_groups                      = []
-    spot_instance_request_id             = "p8a049vs"
-    subnet_id                            = "7qzspimm"
+    spot_instance_request_id             = "k34hh6f0"
+    subnet_id                            = "cdjb8fbw"
     tags                                 = {
         "Name" = "intern-task-app"
     }
     tags_all                             = {}
-    tenancy                              = "7ndqcna3"
+    tenancy                              = "ra6lekov"
     user_data                            = <<-EOT
         #cloud-config
         users:
@@ -98,66 +98,66 @@ resource "aws_instance" "app" {
             systemctl daemon-reload
             systemctl enable --now intern-task-app.service
     EOT
-    user_data_base64                     = "9am15ut2"
+    user_data_base64                     = "j228d4fh"
     user_data_replace_on_change          = false
     vpc_security_group_ids               = [
-        "t3emu3tj",
+        "1u88g4m9",
     ]
 
     metadata_options {
         http_put_response_hop_limit = 0
         http_tokens                 = "required"
-        instance_metadata_tags      = "6cpr628w"
+        instance_metadata_tags      = "mpql4cdf"
     }
 
     root_block_device {
-        device_name = "oybnkhu8"
+        device_name = "zyhvcrj1"
         encrypted   = true
         iops        = 0
-        kms_key_id  = "jabngajw"
+        kms_key_id  = "638fxedj"
         tags_all    = {}
         throughput  = 0
-        volume_id   = "kn4f9ngo"
+        volume_id   = "luxbrafd"
         volume_size = 0
-        volume_type = "bjevx3x7"
+        volume_type = "fyyph7h5"
     }
 }
 
 # aws_internet_gateway.app:
 resource "aws_internet_gateway" "app" {
-    arn      = "0chgby2t"
-    id       = "hrs5eo9y"
-    owner_id = "90q2zjyz"
+    arn      = "qfz1yp2y"
+    id       = "s48vfd9a"
+    owner_id = "mx7ifbr5"
     tags_all = {}
-    vpc_id   = "0dtvu9z6"
+    vpc_id   = "3muzuaad"
 }
 
 # aws_route_table.public:
 resource "aws_route_table" "public" {
-    arn              = "hizo33dy"
-    id               = "ha05ie6q"
-    owner_id         = "ph4imelq"
+    arn              = "k104z9pd"
+    id               = "ytgi3de5"
+    owner_id         = "rwm4oifh"
     propagating_vgws = []
     route            = [
         {
             cidr_block = "0.0.0.0/0"
-            gateway_id = "hrs5eo9y"
+            gateway_id = "s48vfd9a"
         },
     ]
     tags_all         = {}
-    vpc_id           = "0dtvu9z6"
+    vpc_id           = "3muzuaad"
 }
 
 # aws_route_table_association.public:
 resource "aws_route_table_association" "public" {
-    id             = "xx7g2056"
-    route_table_id = "ha05ie6q"
-    subnet_id      = "7qzspimm"
+    id             = "8ipxw50x"
+    route_table_id = "ytgi3de5"
+    subnet_id      = "cdjb8fbw"
 }
 
 # aws_security_group.app:
 resource "aws_security_group" "app" {
-    arn         = "b7ur4wpt"
+    arn         = "zdq9ps26"
     description = "App access and SSH restricted to the operator CIDR"
     egress      = [
         {
@@ -170,7 +170,7 @@ resource "aws_security_group" "app" {
             to_port     = 0
         },
     ]
-    id          = "t3emu3tj"
+    id          = "1u88g4m9"
     ingress     = [
         {
             cidr_blocks = [
@@ -191,48 +191,48 @@ resource "aws_security_group" "app" {
             to_port     = 22
         },
     ]
-    name        = "22bd4nu0"
+    name        = "9oqi4kgd"
     name_prefix = "intern-task-app-"
-    owner_id    = "gfii2ccg"
+    owner_id    = "nup6prdl"
     tags_all    = {}
-    vpc_id      = "0dtvu9z6"
+    vpc_id      = "3muzuaad"
 }
 
 # aws_subnet.public:
 resource "aws_subnet" "public" {
-    arn                                 = "fsaegrfi"
-    availability_zone                   = "mm022zkp"
-    availability_zone_id                = "uij09mjg"
+    arn                                 = "lva7bp3z"
+    availability_zone                   = "h66z5l2q"
+    availability_zone_id                = "18eb37q3"
     cidr_block                          = "10.42.1.0/24"
-    id                                  = "7qzspimm"
-    ipv6_cidr_block_association_id      = "8d200m8x"
+    id                                  = "cdjb8fbw"
+    ipv6_cidr_block_association_id      = "gluw3mld"
     map_public_ip_on_launch             = true
-    owner_id                            = "kxhbnf4k"
-    private_dns_hostname_type_on_launch = "nto2gkva"
+    owner_id                            = "7qsa510m"
+    private_dns_hostname_type_on_launch = "42wah1bv"
     tags                                = {
         "Name" = "intern-task-app-public"
     }
     tags_all                            = {}
-    vpc_id                              = "0dtvu9z6"
+    vpc_id                              = "3muzuaad"
 }
 
 # aws_vpc.app:
 resource "aws_vpc" "app" {
-    arn                                  = "1z407v04"
+    arn                                  = "dyias3ku"
     cidr_block                           = "10.42.0.0/16"
-    default_network_acl_id               = "vfiucx7l"
-    default_route_table_id               = "1b00duok"
-    default_security_group_id            = "sc578gp1"
-    dhcp_options_id                      = "6uhntnfi"
+    default_network_acl_id               = "vnvw5u5h"
+    default_route_table_id               = "9mrqjd1l"
+    default_security_group_id            = "y2ejglqb"
+    dhcp_options_id                      = "xwzd0u4v"
     enable_dns_hostnames                 = true
     enable_dns_support                   = true
     enable_network_address_usage_metrics = false
-    id                                   = "0dtvu9z6"
-    ipv6_association_id                  = "mv8vjt6r"
-    ipv6_cidr_block                      = "s254t2s6"
-    ipv6_cidr_block_network_border_group = "krbqbx5e"
-    main_route_table_id                  = "i7n93ftu"
-    owner_id                             = "taj5qfj4"
+    id                                   = "3muzuaad"
+    ipv6_association_id                  = "y1yuwt52"
+    ipv6_cidr_block                      = "j2zo35pu"
+    ipv6_cidr_block_network_border_group = "rxxitunk"
+    main_route_table_id                  = "bv63bx8i"
+    owner_id                             = "5mdm1npx"
     tags                                 = {
         "Name" = "intern-task-app"
     }
@@ -243,7 +243,8 @@ resource "aws_vpc" "app" {
 Outputs:
 
 app_port = 5000
-public_ip = "0gxzabxw"
+instance_id = "c7eg9n9z"
+public_ip = "oquankac"
 
   run "unrelated_tag_change"... pass
 
@@ -255,7 +256,7 @@ Terraform will perform the following actions:
 
   # aws_instance.app will be updated in-place
   ~ resource "aws_instance" "app" {
-        id                                   = "i-0123456789abcdef0"
+        id                                   = "c7eg9n9z"
       ~ tags                                 = {
           ~ "Name" = "intern-task-app" -> "intern-task-app-renamed"
         }
@@ -266,7 +267,7 @@ Terraform will perform the following actions:
 
   # aws_subnet.public will be updated in-place
   ~ resource "aws_subnet" "public" {
-        id                                  = "7qzspimm"
+        id                                  = "cdjb8fbw"
       ~ tags                                = {
           ~ "Name" = "intern-task-app-public" -> "intern-task-app-renamed-public"
         }
@@ -275,7 +276,7 @@ Terraform will perform the following actions:
 
   # aws_vpc.app will be updated in-place
   ~ resource "aws_vpc" "app" {
-        id                                   = "0dtvu9z6"
+        id                                   = "3muzuaad"
       ~ tags                                 = {
           ~ "Name" = "intern-task-app" -> "intern-task-app-renamed"
         }

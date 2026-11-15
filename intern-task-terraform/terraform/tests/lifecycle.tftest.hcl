@@ -1,13 +1,6 @@
 # Provider mocking is local only: no AWS resources or credentials are used.
 mock_provider "aws" {}
 
-override_resource {
-  target = aws_instance.app
-  values = {
-    id = "i-0123456789abcdef0"
-  }
-}
-
 variables {
   ssh_cidr = "203.0.113.10/32"
 }
@@ -30,7 +23,7 @@ run "unrelated_tag_change" {
     name = "intern-task-app-renamed"
   }
   assert {
-    condition     = aws_instance.app.id == "i-0123456789abcdef0"
+    condition     = aws_instance.app.id == run.initial.instance_id
     error_message = "Changing a Name tag must preserve the instance identity."
   }
   assert {

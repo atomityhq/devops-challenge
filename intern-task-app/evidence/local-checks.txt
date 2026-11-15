@@ -55,9 +55,9 @@ service/kubernetes        ClusterIP   10.96.0.1       <none>        443/TCP   17
 > kubectl --context kind-atomity-intern exec deployment/intern-task-app -- python -c import urllib.request; base="http://intern-task-app"; expected={"/healthz":b"ok\n", "/":b"hello from intern-task\n"}; [(print(path, urllib.request.urlopen(base+path).status, repr(urllib.request.urlopen(base+path).read())), None if urllib.request.urlopen(base+path).read()==body else (_ for _ in ()).throw(AssertionError(path))) for path,body in expected.items()]
 /healthz 200 b'ok\n'
 / 200 b'hello from intern-task\n'
-> C:\Users\User\Documents\Codex\2026-11-15\i-got-this-email-my-bro\outputs\Atomity-Internship\work/tools/kubeconform/kubeconform.exe -strict -summary intern-task-app/k8s/
+> kubeconform -strict -summary intern-task-app/k8s/
 Summary: 2 resources found in 2 files - Valid: 2, Invalid: 0, Errors: 0, Skipped: 0
-> C:\Users\User\Documents\Codex\2026-11-15\i-got-this-email-my-bro\outputs\Atomity-Internship\work/tools/actionlint/actionlint.exe .github/workflows/intern-task-terraform-ci.yml
+> actionlint .github/workflows/intern-task-terraform-ci.yml
 PASS: Docker build, non-root user, Kubernetes rollout, Service HTTP responses, manifest schema, workflow lint.
 > kubectl --context kind-atomity-intern get events --field-selector reason=Unhealthy (retained events from the earlier recovery test)
 LAST SEEN   TYPE      REASON      OBJECT                                 MESSAGE

@@ -1,5 +1,37 @@
 # Verification record
 
+## Requirement audit
+
+| Challenge requirement | Implementation / evidence |
+| --- | --- |
+| Fork and PR targeting upstream `main` | Public fork exists; upstream PR is the submission step, prepared separately |
+| Dockerfile runs supplied app | `../intern-task-app/Dockerfile`; source `app/app.py` is unchanged |
+| Deployment name and pod labels | `../intern-task-app/k8s/deployment.yaml`: `intern-task-app`, `app: intern-task-app` |
+| Readiness and liveness `/healthz` | Both HTTP probes target the named `http` port; deliberate-stall recovery observed |
+| Service name, selector, port 80 | `../intern-task-app/k8s/service.yaml`; named target resolves to 5000 |
+| Runtime port consistency | Dockerfile, Deployment environment, container port, probes, Service and Terraform all use 5000 |
+| Local image, no registry pulls | `imagePullPolicy: Never`; image loaded using kind before apply |
+| Clean local deployment | Successful rollout and Service HTTP checks, without manifest patching |
+| Optional image/user/resource choices explained | App `SOLUTION.md`: UID 10001, resource limits, slim image; no unnecessary multi-stage build |
+| AWS provider with three required skip flags | `terraform/versions.tf`; fake-credential plans succeed |
+| Exactly one EC2 instance, no provisioners | `aws_instance.app` in `terraform/main.tf`; cloud-init only |
+| Non-root user with passwordless sudo | `intern` user in cloud-init, locked password and explicit sudo rule |
+| Install Docker and build the real app | Cloud-init embeds sibling Dockerfile/source and runs `docker build` |
+| Systemd-managed container and reboot startup | Enabled unit, Docker dependency, `Restart=always`, explicit start; static unit validation passed |
+| Host firewall allows only app port | UFW denies incoming, allows TCP 5000; host networking avoids Docker port-publish bypass |
+| Stable instance across unrelated changes | `ignore_changes = [user_data]`, replacement flag false; mock-state tag update preserves actual generated ID |
+| Internet-reachable subnet | VPC, subnet, internet gateway, default route, association, public instance IP |
+| Restricted SSH CIDR variable | Required `ssh_cidr`, no default; rejects world-open IPv4 CIDR |
+| Only SSH and app security-group ingress | Two TCP rules; no extra ingress rules |
+| Public IP and app port outputs | `terraform/outputs.tf`; extra instance-ID output supports identity testing |
+| Sensible defaults | Region, illustrative Ubuntu AMI, instance type and name have defaults |
+| CI structural fixes | Correct working directory, initialized locked provider, workflow/app dependency trigger paths |
+| Local fmt/init/validate/plan and re-plan | Published Terraform logs and three mock tests; no real AWS apply |
+| Explain CI separately from infrastructure | Terraform `SOLUTION.md` and prepared PR description |
+| Public link without login | Public fork and raw verification file checked anonymously |
+
+## Observed local results
+
 Verified locally on Windows with Docker Desktop, a disposable kind cluster,
 Terraform 1.12.0 and AWS provider 5.100.0. No real AWS resources were created.
 
@@ -49,3 +81,5 @@ GitHub-hosted CI is reported separately from these local checks.
 These are local command outputs, not GitHub Actions artifacts. The earlier
 cloud-init/systemd and failure-recovery checks were observed in the execution
 session; full raw transcripts of those earlier commands were not archived.
+Local absolute paths to validator executables were shortened in the app log;
+the command results are unchanged. No credentials or real cloud state are included.

@@ -1,0 +1,15 @@
+# Local credentials and Terraform artifacts must never enter the submission.
+.env
+.env.*
+*.pem
+*.key
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+crash.log
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
