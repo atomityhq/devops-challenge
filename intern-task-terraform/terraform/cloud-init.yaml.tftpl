@@ -1,0 +1,53 @@
+#cloud-config
+users:
+  - default
+  - name: intern
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+package_update: true
+packages:
+  - docker.io
+  - ufw
+write_files:
+  - path: /opt/intern-task-app/Dockerfile
+    permissions: '0644'
+    encoding: b64
+    content: ${dockerfile}
+  - path: /opt/intern-task-app/app/app.py
+    permissions: '0644'
+    encoding: b64
+    content: ${app_source}
+  - path: /etc/systemd/system/intern-task-app.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Intern task application container
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+      StartLimitIntervalSec=0
+
+      [Service]
+      Restart=always
+      RestartSec=5
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host --read-only --cap-drop ALL --security-opt no-new-privileges --memory 64m --cpus 0.25 -e PORT=${app_port} intern-task-app:local
+      ExecStop=/usr/bin/docker stop -t 10 intern-task-app
+      TimeoutStopSec=30
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - |
+    set -eu
+    systemctl enable --now docker.service
+    # Host networking avoids Docker published-port NAT bypassing UFW INPUT rules.
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow ${app_port}/tcp
+    ufw --force enable
+    docker build --tag intern-task-app:local /opt/intern-task-app
+    systemctl daemon-reload
+    systemctl enable --now intern-task-app.service
