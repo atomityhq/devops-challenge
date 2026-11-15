@@ -1,0 +1,295 @@
+tests\lifecycle.tftest.hcl... in progress
+  run "initial"... pass
+
+# aws_instance.app:
+resource "aws_instance" "app" {
+    ami                                  = "ami-04b4f1a9cf54c11d0"
+    arn                                  = "6vbw7x8a"
+    associate_public_ip_address          = true
+    availability_zone                    = "17o9qp2f"
+    cpu_core_count                       = 0
+    cpu_threads_per_core                 = 0
+    disable_api_stop                     = false
+    disable_api_termination              = false
+    ebs_optimized                        = false
+    enable_primary_ipv6                  = false
+    host_id                              = "qiatwc2y"
+    host_resource_group_arn              = "tfd6m0zs"
+    iam_instance_profile                 = "qbjodp74"
+    id                                   = "i-0123456789abcdef0"
+    instance_initiated_shutdown_behavior = "zo1uydzx"
+    instance_lifecycle                   = "73okkt8n"
+    instance_state                       = "6avupt3u"
+    instance_type                        = "t3.micro"
+    ipv6_address_count                   = 0
+    ipv6_addresses                       = []
+    key_name                             = "254omnpj"
+    monitoring                           = false
+    outpost_arn                          = "binbn2c4"
+    password_data                        = "5hbdlil7"
+    placement_group                      = "0wy0ytzh"
+    placement_partition_number           = 0
+    primary_network_interface_id         = "kpi8er8w"
+    private_dns                          = "r8ljls0t"
+    private_ip                           = "w6cakzo0"
+    public_dns                           = "03z8fo4k"
+    public_ip                            = "0gxzabxw"
+    secondary_private_ips                = []
+    security_groups                      = []
+    spot_instance_request_id             = "p8a049vs"
+    subnet_id                            = "7qzspimm"
+    tags                                 = {
+        "Name" = "intern-task-app"
+    }
+    tags_all                             = {}
+    tenancy                              = "7ndqcna3"
+    user_data                            = <<-EOT
+        #cloud-config
+        users:
+          - default
+          - name: intern
+            groups: [sudo]
+            shell: /bin/bash
+            lock_passwd: true
+            sudo: ['ALL=(ALL) NOPASSWD:ALL']
+        package_update: true
+        packages:
+          - docker.io
+          - ufw
+        write_files:
+          - path: /opt/intern-task-app/Dockerfile
+            permissions: '0644'
+            encoding: b64
+            content: RlJPTSBweXRob246My4xMy1zbGltLWJvb2t3b3JtCgpFTlYgUE9SVD01MDAwIFwKICAgIFBZVEhPTkRPTlRXUklURUJZVEVDT0RFPTEgXAogICAgUFlUSE9OVU5CVUZGRVJFRD0xCldPUktESVIgL2FwcApSVU4gZ3JvdXBhZGQgLS1naWQgMTAwMDEgYXBwICYmIHVzZXJhZGQgLS11aWQgMTAwMDEgLS1naWQgYXBwIC0tbm8tY3JlYXRlLWhvbWUgYXBwCkNPUFkgLS1jaG93bj0xMDAwMToxMDAwMSBhcHAvYXBwLnB5IC9hcHAvYXBwLnB5ClVTRVIgMTAwMDE6MTAwMDEKRVhQT1NFIDUwMDAKQ01EIFsicHl0aG9uIiwgIi9hcHAvYXBwLnB5Il0K
+          - path: /opt/intern-task-app/app/app.py
+            permissions: '0644'
+            encoding: b64
+            content: aW1wb3J0IGh0dHAuc2VydmVyDQppbXBvcnQgb3MNCg0KUE9SVCA9IGludChvcy5lbnZpcm9uLmdldCgiUE9SVCIsICI1MDAwIikpDQoNCg0KY2xhc3MgSGFuZGxlcihodHRwLnNlcnZlci5CYXNlSFRUUFJlcXVlc3RIYW5kbGVyKToNCiAgICBkZWYgZG9fR0VUKHNlbGYpOg0KICAgICAgICBpZiBzZWxmLnBhdGggPT0gIi9oZWFsdGh6IjoNCiAgICAgICAgICAgIGJvZHkgPSBiIm9rXG4iDQogICAgICAgIGVsc2U6DQogICAgICAgICAgICBib2R5ID0gYiJoZWxsbyBmcm9tIGludGVybi10YXNrXG4iDQogICAgICAgIHNlbGYuc2VuZF9yZXNwb25zZSgyMDApDQogICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoIkNvbnRlbnQtTGVuZ3RoIiwgc3RyKGxlbihib2R5KSkpDQogICAgICAgIHNlbGYuZW5kX2hlYWRlcnMoKQ0KICAgICAgICBzZWxmLndmaWxlLndyaXRlKGJvZHkpDQoNCiAgICBkZWYgbG9nX21lc3NhZ2Uoc2VsZiwgZm10LCAqYXJncyk6DQogICAgICAgIHBhc3MNCg0KDQppZiBfX25hbWVfXyA9PSAiX19tYWluX18iOg0KICAgIHByaW50KGYibGlzdGVuaW5nIG9uIDAuMC4wLjA6e1BPUlR9IiwgZmx1c2g9VHJ1ZSkNCiAgICBodHRwLnNlcnZlci5IVFRQU2VydmVyKCgiMC4wLjAuMCIsIFBPUlQpLCBIYW5kbGVyKS5zZXJ2ZV9mb3JldmVyKCkNCg==
+          - path: /etc/systemd/system/intern-task-app.service
+            permissions: '0644'
+            content: |
+              [Unit]
+              Description=Intern task application container
+              Requires=docker.service
+              After=docker.service network-online.target
+              Wants=network-online.target
+              StartLimitIntervalSec=0
+        
+              [Service]
+              Restart=always
+              RestartSec=5
+              ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+              ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host --read-only --cap-drop ALL --security-opt no-new-privileges --memory 64m --cpus 0.25 -e PORT=5000 intern-task-app:local
+              ExecStop=/usr/bin/docker stop -t 10 intern-task-app
+              TimeoutStopSec=30
+        
+              [Install]
+              WantedBy=multi-user.target
+        runcmd:
+          - |
+            set -eu
+            systemctl enable --now docker.service
+            # Host networking avoids Docker published-port NAT bypassing UFW INPUT rules.
+            ufw default deny incoming
+            ufw default allow outgoing
+            ufw allow 5000/tcp
+            ufw --force enable
+            docker build --tag intern-task-app:local /opt/intern-task-app
+            systemctl daemon-reload
+            systemctl enable --now intern-task-app.service
+    EOT
+    user_data_base64                     = "9am15ut2"
+    user_data_replace_on_change          = false
+    vpc_security_group_ids               = [
+        "t3emu3tj",
+    ]
+
+    metadata_options {
+        http_put_response_hop_limit = 0
+        http_tokens                 = "required"
+        instance_metadata_tags      = "6cpr628w"
+    }
+
+    root_block_device {
+        device_name = "oybnkhu8"
+        encrypted   = true
+        iops        = 0
+        kms_key_id  = "jabngajw"
+        tags_all    = {}
+        throughput  = 0
+        volume_id   = "kn4f9ngo"
+        volume_size = 0
+        volume_type = "bjevx3x7"
+    }
+}
+
+# aws_internet_gateway.app:
+resource "aws_internet_gateway" "app" {
+    arn      = "0chgby2t"
+    id       = "hrs5eo9y"
+    owner_id = "90q2zjyz"
+    tags_all = {}
+    vpc_id   = "0dtvu9z6"
+}
+
+# aws_route_table.public:
+resource "aws_route_table" "public" {
+    arn              = "hizo33dy"
+    id               = "ha05ie6q"
+    owner_id         = "ph4imelq"
+    propagating_vgws = []
+    route            = [
+        {
+            cidr_block = "0.0.0.0/0"
+            gateway_id = "hrs5eo9y"
+        },
+    ]
+    tags_all         = {}
+    vpc_id           = "0dtvu9z6"
+}
+
+# aws_route_table_association.public:
+resource "aws_route_table_association" "public" {
+    id             = "xx7g2056"
+    route_table_id = "ha05ie6q"
+    subnet_id      = "7qzspimm"
+}
+
+# aws_security_group.app:
+resource "aws_security_group" "app" {
+    arn         = "b7ur4wpt"
+    description = "App access and SSH restricted to the operator CIDR"
+    egress      = [
+        {
+            cidr_blocks = [
+                "0.0.0.0/0",
+            ]
+            description = "Package installation, DNS and image downloads"
+            from_port   = 0
+            protocol    = "-1"
+            to_port     = 0
+        },
+    ]
+    id          = "t3emu3tj"
+    ingress     = [
+        {
+            cidr_blocks = [
+                "0.0.0.0/0",
+            ]
+            description = "App"
+            from_port   = 5000
+            protocol    = "tcp"
+            to_port     = 5000
+        },
+        {
+            cidr_blocks = [
+                "203.0.113.10/32",
+            ]
+            description = "Trusted SSH CIDR (host firewall remains app-only)"
+            from_port   = 22
+            protocol    = "tcp"
+            to_port     = 22
+        },
+    ]
+    name        = "22bd4nu0"
+    name_prefix = "intern-task-app-"
+    owner_id    = "gfii2ccg"
+    tags_all    = {}
+    vpc_id      = "0dtvu9z6"
+}
+
+# aws_subnet.public:
+resource "aws_subnet" "public" {
+    arn                                 = "fsaegrfi"
+    availability_zone                   = "mm022zkp"
+    availability_zone_id                = "uij09mjg"
+    cidr_block                          = "10.42.1.0/24"
+    id                                  = "7qzspimm"
+    ipv6_cidr_block_association_id      = "8d200m8x"
+    map_public_ip_on_launch             = true
+    owner_id                            = "kxhbnf4k"
+    private_dns_hostname_type_on_launch = "nto2gkva"
+    tags                                = {
+        "Name" = "intern-task-app-public"
+    }
+    tags_all                            = {}
+    vpc_id                              = "0dtvu9z6"
+}
+
+# aws_vpc.app:
+resource "aws_vpc" "app" {
+    arn                                  = "1z407v04"
+    cidr_block                           = "10.42.0.0/16"
+    default_network_acl_id               = "vfiucx7l"
+    default_route_table_id               = "1b00duok"
+    default_security_group_id            = "sc578gp1"
+    dhcp_options_id                      = "6uhntnfi"
+    enable_dns_hostnames                 = true
+    enable_dns_support                   = true
+    enable_network_address_usage_metrics = false
+    id                                   = "0dtvu9z6"
+    ipv6_association_id                  = "mv8vjt6r"
+    ipv6_cidr_block                      = "s254t2s6"
+    ipv6_cidr_block_network_border_group = "krbqbx5e"
+    main_route_table_id                  = "i7n93ftu"
+    owner_id                             = "taj5qfj4"
+    tags                                 = {
+        "Name" = "intern-task-app"
+    }
+    tags_all                             = {}
+}
+
+
+Outputs:
+
+app_port = 5000
+public_ip = "0gxzabxw"
+
+  run "unrelated_tag_change"... pass
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # aws_instance.app will be updated in-place
+  ~ resource "aws_instance" "app" {
+        id                                   = "i-0123456789abcdef0"
+      ~ tags                                 = {
+          ~ "Name" = "intern-task-app" -> "intern-task-app-renamed"
+        }
+        # (40 unchanged attributes hidden)
+
+        # (2 unchanged blocks hidden)
+    }
+
+  # aws_subnet.public will be updated in-place
+  ~ resource "aws_subnet" "public" {
+        id                                  = "7qzspimm"
+      ~ tags                                = {
+          ~ "Name" = "intern-task-app-public" -> "intern-task-app-renamed-public"
+        }
+        # (10 unchanged attributes hidden)
+    }
+
+  # aws_vpc.app will be updated in-place
+  ~ resource "aws_vpc" "app" {
+        id                                   = "0dtvu9z6"
+      ~ tags                                 = {
+          ~ "Name" = "intern-task-app" -> "intern-task-app-renamed"
+        }
+        # (15 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 3 to change, 0 to destroy.
+
+  run "reject_world_open_ssh"... pass
+
+Planning failed. Terraform encountered an error while generating this plan.
+
+
+tests\lifecycle.tftest.hcl... tearing down
+tests\lifecycle.tftest.hcl... pass
+
+Success! 3 passed, 0 failed.

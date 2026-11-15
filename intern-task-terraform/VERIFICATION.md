@@ -33,3 +33,19 @@ Cloud-init was rendered and schema-checked, not booted on EC2. Neither systemd
 reboot recovery nor host firewall enforcement was exercised on a real instance.
 Those are configuration-level checks, not claims of a live AWS deployment.
 GitHub-hosted CI is reported separately from these local checks.
+
+## Inspect the evidence
+
+- [Initial real-provider plan](evidence/terraform-plan.txt): seven proposed creates;
+  no AWS apply took place.
+- [Renamed-tag real-provider plan](evidence/terraform-plan-renamed.txt): also starts
+  without state, so it cannot by itself establish update behavior.
+- [Verbose mock test output](evidence/terraform-tests.txt): includes the simulated
+  state and the subsequent in-place update plan. Random IDs/IP-like strings in
+  this file are mock values, not live resource identifiers or usable endpoints.
+- [Fresh local app checks](../intern-task-app/evidence/local-checks.txt): build,
+  user identity, live cluster status, Service HTTP requests and schema/lint checks.
+
+These are local command outputs, not GitHub Actions artifacts. The earlier
+cloud-init/systemd and failure-recovery checks were observed in the execution
+session; full raw transcripts of those earlier commands were not archived.
