@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: intern-task-app
+  template:
+    metadata:
+      labels:
+        app: intern-task-app
+    spec:
+      containers:
+        - name: intern-task-app
+          image: intern-task-app:local
+          # The image only exists in the node's local image store (docker build +
+          # `kind load`). There is no registry, so it must never be pulled.
+          # IfNotPresent uses the loaded image; the default for a ":latest" tag
+          # would be Always and cause ImagePullBackOff, so this is set explicitly.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000 # must match PORT / EXPOSE in the Dockerfile
+          env:
+            - name: PORT
+              value: "5000"
+          # Readiness gates traffic: a pod that fails it is removed from the
+          # Service endpoints but is not restarted.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Liveness restarts a wedged container. The app is a single-threaded
+          # HTTP server, so if it hangs, this request times out and the kubelet
+          # restarts it. More tolerant than readiness to avoid restart flapping.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault

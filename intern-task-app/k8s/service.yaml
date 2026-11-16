@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: intern-task-app
+  labels:
+    app: intern-task-app
+spec:
+  type: ClusterIP
+  selector:
+    app: intern-task-app
+  ports:
+    - name: http
+      port: 80
+      # Named port: resolves to the container's `http` port in the Deployment,
+      # so the Service follows the container port if it ever changes.
+      targetPort: http
+      protocol: TCP
