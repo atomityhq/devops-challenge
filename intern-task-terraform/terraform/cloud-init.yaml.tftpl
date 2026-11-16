@@ -1,0 +1,41 @@
+#cloud-config
+users:
+  - name: appadmin
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+
+package_update: true
+packages:
+  - docker.io
+  - git
+  - ufw
+
+write_files:
+  - path: /etc/systemd/system/intern-task-app.service
+    content: |
+      [Unit]
+      Description=intern-task-app container
+      After=docker.service
+      Requires=docker.service
+
+      [Service]
+      Restart=always
+      RestartSec=3
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --rm --name intern-task-app -p ${app_port}:${app_port} -e PORT=${app_port} intern-task-app:local
+      ExecStop=/usr/bin/docker stop intern-task-app
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl enable --now docker
+  - usermod -aG docker appadmin
+  - git clone --depth 1 --branch ${repo_ref} ${repo_url} /opt/devops-challenge
+  - docker build -t intern-task-app:local /opt/devops-challenge/intern-task-app
+  - systemctl daemon-reload
+  - systemctl enable --now intern-task-app
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow ${app_port}/tcp
+  - ufw --force enable
