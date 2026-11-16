@@ -1,0 +1,59 @@
+#cloud-config
+users:
+  - default
+  - name: ${admin_username}
+    gecos: Deploy user
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+%{ if ssh_public_key != "" ~}
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ endif ~}
+
+package_update: true
+packages:
+  - docker.io
+  - ufw
+  - curl
+
+write_files:
+  # Exactly the files from intern-task-app/, laid out so the same
+  # `docker build` works as in the Kubernetes task.
+  - path: /opt/intern-task-app/Dockerfile
+    encoding: b64
+    content: ${dockerfile_b64}
+    permissions: "0644"
+  - path: /opt/intern-task-app/app/app.py
+    encoding: b64
+    content: ${app_source_b64}
+    permissions: "0644"
+  - path: /etc/systemd/system/intern-task-app.service
+    encoding: b64
+    content: ${systemd_service_b64}
+    permissions: "0644"
+
+runcmd:
+  - [systemctl, enable, --now, docker]
+  - [usermod, -aG, docker, "${admin_username}"]
+  # Build the image on the instance, the same way as in the Kubernetes task.
+  - [docker, build, -t, "intern-task-app:local", /opt/intern-task-app]
+  # Host firewall: default deny inbound; allow only SSH (restricted to the
+  # admin CIDR by the security group) and the app port.
+  - [ufw, --force, reset]
+  - [ufw, default, deny, incoming]
+  - [ufw, default, allow, outgoing]
+  - [ufw, allow, "22/tcp"]
+  - [ufw, allow, "${app_port}/tcp"]
+  - [ufw, --force, enable]
+  # systemd-managed container: starts now and on every boot.
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, intern-task-app.service]
+  # Fail the cloud-init run loudly if the app is not actually serving.
+  - |
+    for i in $(seq 1 30); do
+      curl -sf "http://127.0.0.1:${app_port}/healthz" && exit 0
+      sleep 2
+    done
+    echo "intern-task-app did not become healthy" >&2
+    exit 1

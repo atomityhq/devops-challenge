@@ -4,15 +4,39 @@ on:
   pull_request:
     paths:
       - "intern-task-terraform/**"
+      # The module reads the app's Dockerfile and app.py (and derives the port
+      # from the Dockerfile), so changes there can break it.
+      - "intern-task-app/Dockerfile"
+      - "intern-task-app/app/**"
+      # Without this, edits to the pipeline itself never run the pipeline.
+      - ".github/workflows/intern-task-terraform-ci.yml"
   push:
     branches: [main]
     paths:
       - "intern-task-terraform/**"
+      - "intern-task-app/Dockerfile"
+      - "intern-task-app/app/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   workflow_dispatch:
+
+# Least privilege: this job only reads the repo.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        # The module lives in a subfolder. Without this every terraform command
+        # ran at the repo root, which has no .tf files, so `validate` passed
+        # while checking nothing.
+        working-directory: intern-task-terraform/terraform
     steps:
       - uses: actions/checkout@v4
 
@@ -20,8 +44,22 @@ jobs:
         with:
           terraform_version: "1.12.0"
 
+      # A green check on an empty directory is a false positive. Fail loudly
+      # instead if the module is ever missing or the path is wrong again.
+      - name: Module directory contains Terraform files
+        run: |
+          if ! ls ./*.tf >/dev/null 2>&1; then
+            echo "::error::No .tf files in $(pwd); CI would be validating nothing"
+            exit 1
+          fi
+
       - name: Format check
-        run: terraform fmt -check -recursive
+        run: terraform fmt -check -recursive -diff
+
+      # `validate` needs the providers' schemas, which only exist after `init`.
+      # -backend=false: there is no remote state and no credentials here.
+      - name: Init
+        run: terraform init -backend=false -input=false
 
       - name: Validate
         run: terraform validate

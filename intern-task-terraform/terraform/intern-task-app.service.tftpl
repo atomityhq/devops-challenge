@@ -1,0 +1,24 @@
+[Unit]
+Description=intern-task-app container
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Restart=always
+RestartSec=3
+# Clear any stale container from a previous run (leading "-" = ignore failure).
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+# Host networking so the host firewall (ufw) actually governs the app port;
+# with -p, Docker's iptables rules would bypass ufw.
+ExecStart=/usr/bin/docker run --rm --name intern-task-app \
+  --network host \
+  --pull never \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  -e PORT=${app_port} \
+  intern-task-app:local
+ExecStop=/usr/bin/docker stop intern-task-app
+
+[Install]
+WantedBy=multi-user.target
