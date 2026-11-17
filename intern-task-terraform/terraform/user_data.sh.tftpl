@@ -39,7 +39,7 @@ Wants=network-online.target
 Restart=always
 RestartSec=5
 ExecStartPre=-/usr/bin/docker rm -f intern-task-app
-ExecStart=/usr/bin/docker run --name intern-task-app -e PORT=${app_port} -p ${app_port}:${app_port} intern-task-app:local 
+ExecStart=/usr/bin/docker run --name intern-task-app --network host -e PORT=${app_port} intern-task-app:local
 ExecStop=/usr/bin/docker stop intern-task-app
 
 [Install]
