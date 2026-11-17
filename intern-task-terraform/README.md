@@ -131,3 +131,74 @@ Run this yourself before asking for review — CI does not. It only checks
 - A PR description that separates what was wrong with the pipeline from
   what you did in the Terraform itself — two different problems, treat
   them that way in the writeup.
+
+---
+
+## Implementation Notes — Task 2
+
+### Terraform Infrastructure
+
+The Terraform module in `terraform/` defines:
+
+- One EC2 instance with an assigned public IP.
+- A VPC and public subnet.
+- An internet gateway, default route, and route table association.
+- A security group allowing SSH (port 22) only from the required `ssh_cidr` variable and application traffic (port 5000) from anywhere.
+- Outputs for the instance's public IP and application port.
+
+### Application Bootstrap
+
+The EC2 instance uses `user_data` to:
+
+1. Create a non-root `appadmin` user with passwordless sudo.
+2. Install and enable Docker.
+3. Configure UFW and Docker forwarding firewall rules.
+4. Retrieve the actual Task 1 application source and Dockerfile from the project repository.
+5. Build the Docker image.
+6. Configure and enable a systemd service to manage the application container across reboots.
+
+The application listens on port 5000.
+
+### User Data and Instance Replacement
+
+The EC2 resource uses `user_data_replace_on_change = false`.
+
+This avoids replacing the instance solely because the bootstrap script changes. Cloud-init normally runs during first boot, so changes to the script are not automatically applied to an existing instance.
+
+### Local Validation
+
+From the `intern-task-terraform/terraform` directory, configure fake AWS credentials:
+
+```powershell
+$env:AWS_ACCESS_KEY_ID = "fake"
+$env:AWS_SECRET_ACCESS_KEY = "fake"
+$env:AWS_DEFAULT_REGION = "us-east-1"
+$env:AWS_EC2_METADATA_DISABLED = "true"
+```
+
+Then run:
+
+```powershell
+terraform fmt -check
+terraform init -backend=false
+terraform validate
+terraform plan -var="ssh_cidr=203.0.113.10/32"
+```
+
+Replace the example SSH CIDR with the intended restricted CIDR when evaluating an actual configuration.
+
+The local plan produced **7 resources to add, 0 to change, 0 to destroy**.
+
+### CI Workflow Corrections
+
+The Terraform GitHub Actions workflow was updated to:
+
+- Run Terraform commands from `intern-task-terraform/terraform`.
+- Initialize Terraform with `terraform init -backend=false` before validation.
+- Trigger when the workflow file itself changes.
+
+### Testing Limitations
+
+The Terraform configuration was validated and planned locally using fake credentials. The bootstrap script passed Bash syntax checking.
+
+No AWS infrastructure was deployed. Actual EC2 startup, application availability, firewall behavior, and reboot persistence remain unverified.
