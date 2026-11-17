@@ -4,24 +4,43 @@ on:
   pull_request:
     paths:
       - "intern-task-terraform/**"
+      - "intern-task-app/Dockerfile"
+      - "intern-task-app/app/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   push:
-    branches: [main]
     paths:
       - "intern-task-terraform/**"
+      - "intern-task-app/Dockerfile"
+      - "intern-task-app/app/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    timeout-minutes: 10
 
-      - uses: hashicorp/setup-terraform@v3
+    defaults:
+      run:
+        working-directory: intern-task-terraform/terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.12.0"
+          terraform_version: "1.16.2"
 
       - name: Format check
         run: terraform fmt -check -recursive
 
+      - name: Initialize
+        run: terraform init -backend=false -input=false
+
       - name: Validate
-        run: terraform validate
+        run: terraform validate -no-color

@@ -1,0 +1,61 @@
+#!/bin/bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y ca-certificates curl docker.io sudo ufw
+
+if ! id devops >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash devops
+fi
+
+printf '%s\n' 'devops ALL=(ALL) NOPASSWD:ALL' \
+  > /etc/sudoers.d/devops
+
+chmod 0440 /etc/sudoers.d/devops
+visudo -cf /etc/sudoers.d/devops
+
+systemctl enable --now docker
+
+install -d -m 0755 /opt/intern-task-app/app
+
+printf '%s' '${dockerfile_base64}' | base64 --decode \
+  > /opt/intern-task-app/Dockerfile
+
+printf '%s' '${app_base64}' | base64 --decode \
+  > /opt/intern-task-app/app/app.py
+
+docker build -t intern-task-app:local /opt/intern-task-app
+
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ${app_port}/tcp
+ufw --force enable
+
+cat > /etc/systemd/system/intern-task-app.service <<'UNIT'
+[Unit]
+Description=Intern task application container
+Requires=docker.service
+Wants=network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host --env PORT=${app_port} intern-task-app:local
+ExecStop=-/usr/bin/docker stop --time 10 intern-task-app
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
+
+curl -fsS --retry 10 --retry-connrefused --retry-delay 1 \
+  http://127.0.0.1:${app_port}/healthz
