@@ -1,0 +1,66 @@
+> docker build -t intern-task-app:local intern-task-app
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 345B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.13-slim-bookworm
+#2 DONE 1.6s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 72B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 transferring context: 55B done
+#4 DONE 0.0s
+
+#5 [1/4] FROM docker.io/library/python:3.13-slim-bookworm@sha256:a5a7017efc5969e00ae2b91c8eb0631049a569652aa4ffc4501769049ae45c72
+#5 resolve docker.io/library/python:3.13-slim-bookworm@sha256:a5a7017efc5969e00ae2b91c8eb0631049a569652aa4ffc4501769049ae45c72 0.0s done
+#5 DONE 0.0s
+
+#6 [2/4] WORKDIR /app
+#6 CACHED
+
+#7 [3/4] RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app
+#7 CACHED
+
+#8 [4/4] COPY --chown=10001:10001 app/app.py /app/app.py
+#8 CACHED
+
+#9 exporting to image
+#9 exporting layers done
+#9 exporting manifest sha256:d06bb06cf999235e4984fb8b51150eef1ec059015903ae5d4372903eb5b0b99f done
+#9 exporting config sha256:5a186c97a208e9e0e4f936669ea481b8947bd552b1831d3c5f75135780247000 done
+#9 exporting attestation manifest sha256:30e42276b74bf0abed0b4c06ec7a84f6a4fa02ce07a98f225dc25463e7b35229 0.0s done
+#9 exporting manifest list sha256:708ff5098973e5fb51d57205607fd3e57c7c4f8e9eecd23658f509517ee82869
+#9 exporting manifest list sha256:708ff5098973e5fb51d57205607fd3e57c7c4f8e9eecd23658f509517ee82869 0.0s done
+#9 naming to docker.io/library/intern-task-app:local done
+#9 unpacking to docker.io/library/intern-task-app:local done
+#9 DONE 0.1s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/woabugkqb9ao79ktybkyncd7c
+> docker run --rm --entrypoint python intern-task-app:local -c import os; assert os.getuid()==10001; print("Verified UID", os.getuid())
+Verified UID 10001
+> kubectl --context kind-atomity-intern rollout status deployment/intern-task-app --timeout=60s
+deployment "intern-task-app" successfully rolled out
+> kubectl --context kind-atomity-intern get pods,svc
+NAME                                   READY   STATUS    RESTARTS      AGE
+pod/intern-task-app-69f45db494-6ln56   1/1     Running   1 (10m ago)   16m
+
+NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+service/intern-task-app   ClusterIP   10.96.232.211   <none>        80/TCP    16m
+service/kubernetes        ClusterIP   10.96.0.1       <none>        443/TCP   17m
+> kubectl --context kind-atomity-intern exec deployment/intern-task-app -- python -c import urllib.request; base="http://intern-task-app"; expected={"/healthz":b"ok\n", "/":b"hello from intern-task\n"}; [(print(path, urllib.request.urlopen(base+path).status, repr(urllib.request.urlopen(base+path).read())), None if urllib.request.urlopen(base+path).read()==body else (_ for _ in ()).throw(AssertionError(path))) for path,body in expected.items()]
+/healthz 200 b'ok\n'
+/ 200 b'hello from intern-task\n'
+> kubeconform -strict -summary intern-task-app/k8s/
+Summary: 2 resources found in 2 files - Valid: 2, Invalid: 0, Errors: 0, Skipped: 0
+> actionlint .github/workflows/intern-task-terraform-ci.yml
+PASS: Docker build, non-root user, Kubernetes rollout, Service HTTP responses, manifest schema, workflow lint.
+> kubectl --context kind-atomity-intern get events --field-selector reason=Unhealthy (retained events from the earlier recovery test)
+LAST SEEN   TYPE      REASON      OBJECT                                 MESSAGE
+11m         Warning   Unhealthy   pod/intern-task-app-69f45db494-6ln56   Readiness probe failed: Get "http://10.244.0.5:5000/healthz": dial tcp 10.244.0.5:5000: connect: connection refused
+11m         Warning   Unhealthy   pod/intern-task-app-69f45db494-6ln56   Readiness probe failed: Get "http://10.244.0.5:5000/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+11m         Warning   Unhealthy   pod/intern-task-app-69f45db494-6ln56   Liveness probe failed: Get "http://10.244.0.5:5000/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
