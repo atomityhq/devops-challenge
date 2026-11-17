@@ -1,0 +1,60 @@
+apiVersion: apps/v1          # Which API version defines Deployments
+kind: Deployment             # The type of object
+metadata:
+  name: intern-task-app      # Required name, from the task
+  labels:
+    app: intern-task-app
+spec:
+  replicas: 2                # Keep 2 pods running. With 2, when one fails
+                             # readiness, the other still serves traffic.
+  selector:
+    matchLabels:
+      app: intern-task-app   # Which pods this Deployment manages.
+                             # MUST match the template labels below.
+  template:                  # The blueprint for each pod
+    metadata:
+      labels:
+        app: intern-task-app # The label the task requires, and what the Service finds
+    spec:
+      securityContext:       # Pod-level security settings
+        runAsNonRoot: true   # Refuse to start if the container would run as root
+        runAsUser: 10001     # Matches the Dockerfile's user
+        seccompProfile:
+          type: RuntimeDefault   # Blocks rarely-needed, risky system calls
+      containers:
+        - name: intern-task-app
+          image: intern-task-app:local
+          imagePullPolicy: Never     # Explained below
+          ports:
+            - name: http             # A NAME for the port, used by probes + Service
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"          # Explicit, so the YAML alone shows the port
+          readinessProbe:
+            httpGet:                 # Make a real HTTP request...
+              path: /healthz
+              port: http             # ...to the port named "http"
+            initialDelaySeconds: 2   # Wait 2s after start before first check
+            periodSeconds: 5         # Check every 5s
+            timeoutSeconds: 2        # No answer in 2s = failure
+            failureThreshold: 2      # 2 failures in a row = not ready (~10s)
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10        # Check every 10s
+            timeoutSeconds: 2
+            failureThreshold: 3      # 3 failures in a row = restart (~30s)
+          resources:
+            requests:                # What the scheduler reserves for this pod
+              cpu: 10m               # 10 "millicores" = 1% of one CPU
+              memory: 32Mi
+            limits:
+              memory: 64Mi           # Hard cap; exceeding it kills the container
+          securityContext:           # Container-level security
+            allowPrivilegeEscalation: false   # Can't gain more privileges than it starts with
+            readOnlyRootFilesystem: true      # App can't write files (it doesn't need to)
+            capabilities:
+              drop: ["ALL"]          # Remove all special Linux powers; 8080 needs none
