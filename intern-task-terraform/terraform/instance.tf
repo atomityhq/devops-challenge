@@ -11,6 +11,11 @@ resource "aws_instance" "app" {
     app_py_b64     = filebase64("${path.module}/../../intern-task-app/app/app.py")
   })
 
+  depends_on = [
+    aws_internet_gateway.main,
+    aws_route_table_association.public,
+  ]
+
   lifecycle {
     ignore_changes = [user_data]
   }
