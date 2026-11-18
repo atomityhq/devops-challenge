@@ -1,6 +1,7 @@
 name: intern-task-app ci
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "intern-task-app/**"
@@ -11,9 +12,6 @@ on:
 
 jobs:
   floor-check:
-    # Syntax/schema only — never builds a cluster, never deploys, never
-    # judges correctness. Confirms the Dockerfile builds and the k8s YAML
-    # is schema-valid; nothing more. The real review is a human's.
     runs-on: ubuntu-latest
     defaults:
       run:
