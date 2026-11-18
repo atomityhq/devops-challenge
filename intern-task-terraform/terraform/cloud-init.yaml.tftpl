@@ -1,0 +1,52 @@
+#cloud-config
+
+users:
+  - name: ${admin_username}                       
+    shell: /bin/bash
+    lock_passwd: true                
+    sudo: "ALL=(ALL) NOPASSWD:ALL"                     
+    ssh_authorized_keys: ${ssh_authorized_keys}
+
+package_update: true
+packages:
+  - docker.io
+  - ufw
+  - curl         
+
+write_files:
+  - path: /opt/intern-task-app/app/app.py
+    permissions: "0644"
+    encoding: b64
+    content: ${app_source_b64}
+  - path: /opt/intern-task-app/Dockerfile
+    permissions: "0644"
+    encoding: b64
+    content: ${dockerfile_b64}
+  - path: /etc/systemd/system/intern-task-app.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=intern-task-app container
+      After=docker.service network-online.target
+      Requires=docker.service
+
+      [Service]
+      Restart=always
+      RestartSec=3
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --rm --name intern-task-app -p ${app_port}:${app_port} intern-task-app:local
+      ExecStop=/usr/bin/docker stop intern-task-app
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow ${app_port}/tcp
+  - ufw allow from ${ssh_allowed_cidr} to any port 22 proto tcp
+  - ufw --force enable
+  - systemctl enable --now docker
+  - docker build -t intern-task-app:local /opt/intern-task-app
+  - systemctl daemon-reload
+  - systemctl enable --now intern-task-app.service
+  - curl --fail --silent --retry 10 --retry-delay 3 --retry-connrefused http://127.0.0.1:${app_port}/healthz
