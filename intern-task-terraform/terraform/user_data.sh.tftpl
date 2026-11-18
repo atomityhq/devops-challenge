@@ -1,0 +1,114 @@
+
+#!/bin/bash
+
+set -euxo pipefail
+
+# Log all bootstrap output
+exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+echo "Starting intern-task-app bootstrap"
+
+# ---------------------------------------
+# 1. Create a non-root Linux user
+# ---------------------------------------
+
+if ! id appops >/dev/null 2>&1; then
+    useradd --create-home --shell /bin/bash appops
+fi
+
+echo "appops ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/appops
+chmod 0440 /etc/sudoers.d/appops
+visudo -cf /etc/sudoers.d/appops
+
+# ---------------------------------------
+# 2. Install Docker and firewall
+# ---------------------------------------
+
+dnf install -y docker firewalld
+
+systemctl enable --now firewalld
+systemctl enable --now docker
+
+# ---------------------------------------
+# 3. Configure application files
+# ---------------------------------------
+
+mkdir -p /opt/intern-task-app/app
+
+cat > /opt/intern-task-app/app/app.py <<'APP_SOURCE'
+${app_source}
+APP_SOURCE
+
+cat > /opt/intern-task-app/Dockerfile <<'DOCKERFILE'
+${dockerfile}
+DOCKERFILE
+
+# ---------------------------------------
+# 4. Build the actual application image
+# ---------------------------------------
+
+docker build \
+    -t intern-task-app:ec2 \
+    /opt/intern-task-app
+
+# ---------------------------------------
+# 5. Configure host firewall
+# ---------------------------------------
+
+# Remove unrestricted SSH access from the default zone.
+firewall-cmd --permanent --zone=public --remove-service=ssh || true
+
+# Drop all traffic not explicitly allowed.
+firewall-cmd --permanent --zone=public --set-target=DROP
+
+# Allow the application port publicly.
+firewall-cmd --permanent --zone=public \
+    --add-port=${app_port}/tcp
+
+# Allow SSH only from the supplied CIDR.
+firewall-cmd --permanent --zone=public \
+    --add-rich-rule='rule family="ipv4" source address="${ssh_cidr}" service name="ssh" accept'
+
+firewall-cmd --reload
+
+# ---------------------------------------
+# 6. Create systemd service
+# ---------------------------------------
+
+cat > /etc/systemd/system/intern-task-app.service <<'SERVICE'
+[Unit]
+Description=Automity Intern Task Application
+After=docker.service firewalld.service
+Requires=docker.service
+
+[Service]
+Type=simple
+
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+
+ExecStart=/usr/bin/docker run \
+    --name intern-task-app \
+    --network host \
+    -e PORT=${app_port} \
+    intern-task-app:ec2
+
+ExecStop=/usr/bin/docker stop intern-task-app
+ExecStopPost=-/usr/bin/docker rm -f intern-task-app
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+# ---------------------------------------
+# 7. Enable and start application
+# ---------------------------------------
+
+systemctl daemon-reload
+
+systemctl enable intern-task-app.service
+systemctl start intern-task-app.service
+
+echo "Intern task application bootstrap completed"
