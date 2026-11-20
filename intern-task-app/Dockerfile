@@ -9,6 +9,10 @@ ENV PORT=8080 \
 # tini runs as PID 1: forwards SIGTERM to the app and reaps zombies.
 # Without it the kernel ignores SIGTERM for PID 1 and every stop waits
 # for the SIGKILL timeout.
+# Not version-pinned on purpose: apt resolves against the live Debian repo,
+# so an exact pin breaks the build once that version is superseded. The base
+# image digest above is what provides build reproducibility.
+# hadolint ignore=DL3008
 RUN apt-get update \
  && apt-get install -y --no-install-recommends tini \
  && rm -rf /var/lib/apt/lists/*
