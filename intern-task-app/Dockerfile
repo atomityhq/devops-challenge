@@ -23,5 +23,12 @@ COPY app/app.py ./app.py
 
 USER 10001:10001
 EXPOSE ${PORT}
+
+# Used by plain Docker (e.g. the EC2 host); Kubernetes ignores this and uses
+# its own probes. Python does the check because slim ships no curl.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["python", "-c", "import os,urllib.request as u; u.urlopen('http://127.0.0.1:%s/healthz' % os.environ['PORT'], timeout=2)"]
+
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["python", "app.py"]
+
