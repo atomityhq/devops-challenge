@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - "intern-task-terraform/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - "intern-task-terraform/**"
+      - ".github/workflows/intern-task-terraform-ci.yml"
   workflow_dispatch:
 
 jobs:
@@ -21,7 +23,10 @@ jobs:
           terraform_version: "1.12.0"
 
       - name: Format check
-        run: terraform fmt -check -recursive
+        run: terraform fmt -check -recursive intern-task-terraform/terraform
+
+      - name: Initialize
+        run: terraform -chdir=intern-task-terraform/terraform init -backend=false
 
       - name: Validate
-        run: terraform validate
+        run: terraform -chdir=intern-task-terraform/terraform validate

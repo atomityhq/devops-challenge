@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - "intern-task-app/**"
+      - ".github/workflows/intern-task-app-ci.yml"
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - "intern-task-app/**"
+      - ".github/workflows/intern-task-app-ci.yml"
 
 jobs:
   floor-check:
