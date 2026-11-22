@@ -1,0 +1,95 @@
+#!/bin/bash
+set -euxo pipefail
+
+# Support Amazon Linux 2 and Amazon Linux 2023.
+if command -v dnf >/dev/null 2>&1; then
+  dnf update -y
+  dnf install -y docker iptables
+else
+  yum update -y
+  amazon-linux-extras install -y docker
+  yum install -y iptables-services
+fi
+
+# Create a non-root user with passwordless sudo.
+useradd -m -s /bin/bash appadmin
+echo "appadmin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/appadmin
+chmod 0440 /etc/sudoers.d/appadmin
+
+# Install and start Docker.
+systemctl enable --now docker
+
+# Prepare the actual Task 1 application.
+mkdir -p /opt/intern-task-app/app
+echo "${app_py_b64}" | base64 -d > /opt/intern-task-app/app/app.py
+echo "${dockerfile_b64}" | base64 -d > /opt/intern-task-app/Dockerfile
+
+cd /opt/intern-task-app
+docker build -t intern-task-app:local .
+
+# Configure host and Docker firewall rules.
+cat > /usr/local/sbin/configure-intern-task-firewall.sh <<'FIREWALL'
+#!/bin/bash
+set -e
+
+# Host traffic: permit loopback, established connections and restricted SSH.
+iptables -F INPUT
+iptables -P INPUT DROP
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# Allow DHCP server replies required for EC2 networking.
+iptables -A INPUT -p udp --sport 67 --dport 68 -j ACCEPT
+
+# Allow SSH only from the approved CIDR.
+iptables -A INPUT -p tcp --dport 22 -s ${ssh_allowed_cidr} -j ACCEPT
+
+# Docker-published ports traverse DOCKER-USER, not the host INPUT chain.
+iptables -N DOCKER-USER 2>/dev/null || true
+iptables -F DOCKER-USER
+iptables -A DOCKER-USER -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+iptables -A DOCKER-USER -i eth0 -p tcp --dport 8080 -j RETURN
+iptables -A DOCKER-USER -i eth0 -j DROP
+iptables -A DOCKER-USER -j RETURN
+FIREWALL
+
+chmod 0755 /usr/local/sbin/configure-intern-task-firewall.sh
+
+cat > /etc/systemd/system/intern-task-firewall.service <<'SERVICE'
+[Unit]
+Description=Configure host and Docker firewall rules
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/configure-intern-task-firewall.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-task-firewall.service
+
+# Run the application as a systemd-managed Docker container.
+cat > /etc/systemd/system/intern-task-app.service <<'SERVICE'
+[Unit]
+Description=Intern Task Application Container
+Requires=docker.service intern-task-firewall.service
+After=docker.service intern-task-firewall.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --name intern-task-app -p 8080:8080 intern-task-app:local
+ExecStop=/usr/bin/docker stop intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
