@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euxo pipefail
+
+# Install and start Docker and the host firewall.
+dnf install -y docker firewalld
+systemctl enable --now docker
+systemctl enable --now firewalld
+
+# Create a non-root administrator with passwordless sudo.
+if ! id appuser >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash appuser
+fi
+
+usermod -aG wheel appuser
+printf '%s\n' 'appuser ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/appuser
+chmod 0440 /etc/sudoers.d/appuser
+visudo -cf /etc/sudoers.d/appuser
+
+# Place the actual Task 1 application and Dockerfile on the instance.
+mkdir -p /opt/intern-task-app/app
+
+cat > /opt/intern-task-app/Dockerfile <<'DOCKERFILE'
+${dockerfile}
+DOCKERFILE
+
+cat > /opt/intern-task-app/app/app.py <<'PYAPP'
+${app_source}
+PYAPP
+
+# Build the same application image from the supplied Dockerfile.
+docker build -t intern-task-app:local /opt/intern-task-app
+
+# Create a systemd service that manages the application container.
+cat > /etc/systemd/system/intern-task-app.service <<'SERVICE'
+[Unit]
+Description=Intern Task Application Container
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --name intern-task-app --publish 5000:5000 --restart=no intern-task-app:local
+ExecStop=/usr/bin/docker stop --time 10 intern-task-app
+ExecStopPost=-/usr/bin/docker rm -f intern-task-app
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
+
+# Default-deny inbound traffic, then permit only the app and trusted SSH.
+firewall-cmd --permanent --set-default-zone=drop
+firewall-cmd --permanent --zone=drop --add-port=5000/tcp
+firewall-cmd --permanent --zone=drop --add-rich-rule='rule family="ipv4" source address="${ssh_cidr}" port port="22" protocol="tcp" accept'
+firewall-cmd --reload
