@@ -1,0 +1,44 @@
+#!/bin/bash
+set -euo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get -o Acquire::Retries=3 update
+apt-get -o Acquire::Retries=3 install -y docker.io ufw sudo
+
+id -u appadmin >/dev/null 2>&1 || useradd --create-home --shell /bin/bash appadmin
+printf '%s\n' 'appadmin ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/appadmin
+chmod 0440 /etc/sudoers.d/appadmin
+visudo -cf /etc/sudoers.d/appadmin
+
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ${app_port}/tcp
+ufw --force enable
+
+install -d /opt/intern-task-app/app
+cd /opt/intern-task-app
+printf '%s' '${dockerfile}' | base64 --decode > Dockerfile
+printf '%s' '${app_source}' | base64 --decode > app/app.py
+
+systemctl enable --now docker
+docker build -t intern-task-app:local .
+
+cat > /etc/systemd/system/intern-task-app.service <<'UNIT'
+[Unit]
+Description=Intern task HTTP service
+Requires=docker.service
+After=docker.service
+
+[Service]
+ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host intern-task-app:local
+ExecStop=/usr/bin/docker stop intern-task-app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
