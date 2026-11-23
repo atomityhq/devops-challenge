@@ -1,0 +1,2 @@
+Dockerfile text eol=lf
+app/app.py text eol=lf
