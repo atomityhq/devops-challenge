@@ -1,0 +1,51 @@
+#!/bin/bash
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y docker.io ufw sudo
+
+if ! id appadmin >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash appadmin
+fi
+
+install -m 0440 /dev/null /etc/sudoers.d/appadmin
+printf '%s\n' 'appadmin ALL=(ALL:ALL) NOPASSWD: ALL' > /etc/sudoers.d/appadmin
+visudo -cf /etc/sudoers.d/appadmin
+
+install -d -m 0755 /opt/intern-task-app/app
+base64 -d > /opt/intern-task-app/Dockerfile <<'DOCKERFILE'
+${dockerfile}
+DOCKERFILE
+base64 -d > /opt/intern-task-app/app/app.py <<'APP_SOURCE'
+${app_source}
+APP_SOURCE
+
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ${app_port}/tcp
+ufw --force enable
+
+systemctl enable --now docker.service
+docker build -t intern-task-app:local /opt/intern-task-app
+
+# Host networking puts app traffic through UFW's host INPUT rules.
+cat > /etc/systemd/system/intern-task-app.service <<'UNIT'
+[Unit]
+Description=Atomity intern task application
+Requires=docker.service
+After=docker.service
+PartOf=docker.service
+
+[Service]
+ExecStart=/usr/bin/docker run --rm --name intern-task-app --network host intern-task-app:local
+ExecStop=/usr/bin/docker stop -t 10 intern-task-app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now intern-task-app.service
