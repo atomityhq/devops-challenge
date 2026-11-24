@@ -1,0 +1,51 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - ufw
+
+users:
+  - name: ${admin_user}
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+%{ if ssh_public_key != "" }
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+%{ endif }
+
+write_files:
+  - path: /opt/intern-task-app/Dockerfile
+    encoding: b64
+    content: ${dockerfile_b64}
+  - path: /opt/intern-task-app/app/app.py
+    encoding: b64
+    content: ${app_py_b64}
+  - path: /etc/systemd/system/intern-task-app.service
+    content: |
+      [Unit]
+      Description=intern-task-app container
+      After=docker.service network-online.target
+      Requires=docker.service
+
+      [Service]
+      Restart=always
+      RestartSec=3
+      ExecStartPre=-/usr/bin/docker rm -f intern-task-app
+      ExecStart=/usr/bin/docker run --rm --name intern-task-app -e PORT=${app_port} -p ${app_port}:${app_port} intern-task-app:local
+      ExecStop=/usr/bin/docker stop intern-task-app
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl enable --now docker
+  - usermod -aG docker ${admin_user}
+  - docker build -t intern-task-app:local /opt/intern-task-app
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow from ${ssh_cidr} to any port 22 proto tcp
+  - ufw allow ${app_port}/tcp
+  - ufw --force enable
+  - systemctl daemon-reload
+  - systemctl enable --now intern-task-app.service
