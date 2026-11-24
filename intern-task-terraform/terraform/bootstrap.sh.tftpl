@@ -1,0 +1,42 @@
+#!/bin/bash
+set -euo pipefail
+
+apt-get update
+apt-get install -y docker.io git sudo ufw
+
+systemctl enable --now docker
+
+useradd -m -s /bin/bash appuser
+echo "appuser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/appuser
+chmod 440 /etc/sudoers.d/appuser
+
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 5000/tcp
+ufw allow from ${ssh_cidr} to any port 22 proto tcp
+ufw --force enable
+
+git clone --branch "${repository_branch}" "${repository_url}" /opt/intern-repo
+
+cd /opt/intern-repo/intern-task-app
+docker build -t intern-task-app:latest .
+
+cat > /etc/systemd/system/intern-app.service <<'SERVICE'
+[Unit]
+Description=Intern Application
+Requires=docker.service
+After=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f intern-app
+ExecStart=/usr/bin/docker run --network host --name intern-app intern-task-app:latest
+ExecStop=/usr/bin/docker stop intern-app
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now intern-app.service
